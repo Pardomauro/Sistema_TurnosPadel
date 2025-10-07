@@ -1,0 +1,14 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Backend - MegaPadel",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Mauro Pardo y Ezequiel Grasso",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0"
+  }
+}
