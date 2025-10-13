@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Backend - MegaPadel",
+  "description": "Backend - Sistema de Turnos Pádel",
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -12,3 +12,4 @@
     "express": "^5.1.0"
   }
 }
+ 
