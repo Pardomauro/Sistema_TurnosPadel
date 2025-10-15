@@ -67,6 +67,9 @@ const inicializarDataBase = async () => {
         `);
 
 
+        // Crear tabla usuarios
+
+ 
         
 
         await connection.end();
