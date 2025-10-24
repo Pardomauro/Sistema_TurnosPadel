@@ -1,4 +1,3 @@
-
 const mysql = require('mysql2/promise');
 
 
@@ -67,11 +66,44 @@ const inicializarDataBase = async () => {
         `);
 
 
-        // Crear tabla usuarios
+        // Crear tabla usuarios con columna rol
+        await connection.execute(`
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id_usuario INT AUTO_INCREMENT PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL,
+                email VARCHAR(191) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                rol ENUM('usuario', 'administrador') NOT NULL DEFAULT 'usuario',
+                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        `);
 
- 
+        // Asegurarse de que la columna rol exista en caso de que la tabla ya esté creada
+        await connection.execute(`
+            ALTER TABLE usuarios 
+            ADD COLUMN IF NOT EXISTS rol ENUM('usuario', 'administrador') NOT NULL DEFAULT 'usuario';
+        `);
+
+        // Crear tabla turnos
+        await connection.execute(`
+            CREATE TABLE IF NOT EXISTS turnos (
+                id_turno INT AUTO_INCREMENT PRIMARY KEY,
+                id_usuario INT NOT NULL,
+                id_cancha INT NOT NULL,
+                fecha_turno DATETIME NOT NULL,
+                duracion INT NOT NULL, 
+                precio DECIMAL(10, 2) NOT NULL,
+                estado ENUM('reservado', 'cancelado', 'completado') NOT NULL DEFAULT 'reservado',
+                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+                FOREIGN KEY (id_cancha) REFERENCES canchas(id) ON DELETE CASCADE
+            )
+        `);
+
         
-
+        console.log('Tablas "canchas", "usuarios" y "turnos" creadas o ya existentes');
         await connection.end();
     } catch (error) {
         console.error('Error al inicializar la base de datos:', error.message);
