@@ -4,11 +4,16 @@ const mysql = require('mysql2/promise');
 // Configuracion de la base de datos
 
 const dbConfig = {
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'sistema_turnos_padel',
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'sistema_turnos_padel',
     charset: 'utf8mb4'
+}
+
+// Validar variables de entorno
+if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
+    throw new Error('Faltan variables de entorno para la configuración de la base de datos. Por favor, verifica el archivo .env.');
 }
 
 // Creamos conexion a la base de datos
