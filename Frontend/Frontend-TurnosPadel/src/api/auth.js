@@ -117,24 +117,5 @@ export const validarTokenRecuperacion = async (token) => {
     }
 };
 
-// Función para obtener perfil del Usuario
-export const obtenerPerfilUsuario = async (usuario_id) => {
-    try {
-        const response = await fetch(`${API_BASE_URL}/usuarios/${usuario_id}`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            return data;
-        } else {
-            throw new Error('Error en la solicitud de obtención de perfil');
-        }
-    } catch (error) {
-        console.error('Error en la función obtenerPerfilUsuario:', error);
-        throw error;
-    }
-};
+// NOTA: La función obtenerPerfilUsuario se movió a usuarios.js 
+// para mantener mejor organización del código (funciones CRUD de usuarios)

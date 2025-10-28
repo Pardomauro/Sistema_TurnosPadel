@@ -1,0 +1,224 @@
+
+// Peticiones http relacionadas con las reservas 
+import { validarDatosReserva } from '../utils';
+
+const API_BASE_URL = 'http://localhost:3000/api';
+
+// Función para obtener todas las reservas (solo administrador)
+export const obtenerReservas = async () => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al obtener las reservas');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para obtener reserva por id (solo administrador)
+export const obtenerReservaPorId = async (id) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos/${id}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al obtener la reserva');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para crear una nueva reserva 
+// Campos esperados en el objeto reserva:
+// - id_usuario: ID del usuario que hace la reserva
+// - id_cancha: ID de la cancha a reservar
+// - fecha_turno: Fecha y hora en formato "YYYY-MM-DD HH:MM:SS"
+// - duracion: Duración en minutos (ej: 60, 90, 120)
+// - precio: Precio de la reserva
+// - estado: Estado del turno ('reservado', 'cancelado', 'completado')
+// - email: Email del usuario (para confirmación)
+// - nombre: Nombre del usuario (para confirmación)
+export const crearReserva = async (reserva) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(reserva)
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al crear la reserva');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para actualizar una reserva existente (solo administrador)
+export const actualizarReserva = async (id, reserva) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(reserva)
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al actualizar la reserva');
+        }
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para eliminar una reserva (solo administrador)
+export const eliminarReserva = async (id) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al eliminar la reserva');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para verificar disponibilidad de una cancha en fecha y hora específica
+// Parámetros:
+// - id_cancha: ID de la cancha
+// - fecha: Fecha en formato "YYYY-MM-DD"
+// - hora: Hora en formato "HH:MM"
+export const verificarDisponibilidadCancha = async (id_cancha, fecha, hora) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos/disponibilidad/${id_cancha}/${fecha}/${hora}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al verificar la disponibilidad');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para obtener turnos por fecha específica
+export const obtenerTurnosPorFecha = async (fecha) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos/fecha/${fecha}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al obtener los turnos por fecha');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para obtener todas las reservas con paginación
+export const obtenerReservasPaginadas = async (pagina = 1, limite = 10) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos?pagina=${pagina}&limite=${limite}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al obtener las reservas paginadas');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para actualizar parcialmente una reserva (permite actualizar solo algunos campos)
+// Campos opcionales: id_usuario, id_cancha, fecha_turno, duracion, precio, estado
+export const actualizarReservaParcial = async (id, camposActualizar) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(camposActualizar)
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al actualizar la reserva parcialmente');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Las funciones de validación se movieron a ../utils/validations.js
+// Importar validarDatosReserva si necesitas validar datos antes de enviarlos
+
+
