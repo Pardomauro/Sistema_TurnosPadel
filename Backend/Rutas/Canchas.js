@@ -7,7 +7,7 @@ const { pool } = require('../Config/db');
 
 
 // GET /api/canchas - Obtener todas las canchas
-router.get('/', async (req, res) => {
+router.get('/canchas', async (req, res) => {
     try {
         const [rows] = await pool.query(`
             SELECT 
@@ -38,7 +38,7 @@ router.get('/', async (req, res) => {
 });
 
 // GET /api/canchas/:id - Obtener una cancha específica por ID
-router.get('/:id', async (req, res) => {
+router.get('/canchas/:id', async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -85,7 +85,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // GET /api/canchas/disponibles - Obtener solo canchas disponibles (no en mantenimiento)
-router.get('/disponibles/activas', async (req, res) => {
+router.get('/canchas/disponibles', async (req, res) => {
     try {
         const [rows] = await pool.query(`
             SELECT 
@@ -116,9 +116,39 @@ router.get('/disponibles/activas', async (req, res) => {
     }
 });
 
+// Ruta para verificar disponibilidad de canchas
+app.get('/api/turnos/disponibilidad', [
+  body('fecha').isISO8601().withMessage('La fecha debe estar en formato ISO8601 (YYYY-MM-DD)'),
+  body('horaInicio').isString().withMessage('La hora de inicio es requerida'),
+  body('horaFin').isString().withMessage('La hora de fin es requerida')
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errores: errors.array() });
+  }
+
+  const { fecha, horaInicio, horaFin, id_cancha } = req.body;
+
+  try {
+    const [resultados] = await pool.query(
+      `SELECT * FROM turnos WHERE id_cancha = ? AND fecha_turno BETWEEN ? AND ?`,
+      [id_cancha, `${fecha} ${horaInicio}`, `${fecha} ${horaFin}`]
+    );
+
+    if (resultados.length > 0) {
+      return res.status(200).json({ disponible: false, mensaje: 'La cancha no está disponible en el horario solicitado.' });
+    }
+
+    res.status(200).json({ disponible: true, mensaje: 'La cancha está disponible.' });
+  } catch (error) {
+    console.error('Error al verificar disponibilidad:', error);
+    res.status(500).json({ error: 'Error interno al verificar disponibilidad.' });
+  }
+});
+
 
 // POST /api/canchas - Crear una nueva cancha
-router.post('/', async (req, res) => {
+router.post('/canchas', async (req, res) => {
     try {
         const { precio, en_mantenimiento = false, horarios_disponibles } = req.body;
 
@@ -187,7 +217,7 @@ router.post('/', async (req, res) => {
 
 
 // PUT /api/canchas/:id - Actualizar una cancha existente
-router.put('/:id', async (req, res) => {
+router.put('/canchas/:id', async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -287,7 +317,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE /api/canchas/:id - Eliminar una cancha
-router.delete('/:id', async (req, res) => {
+router.delete('/canchas/:id', async (req, res) => {
     try {
         const { id } = req.params;
 

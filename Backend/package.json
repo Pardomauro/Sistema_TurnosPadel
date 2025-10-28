@@ -9,7 +9,10 @@
   "author": "Mauro Pardo y Ezequiel Grasso",
   "license": "ISC",
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "cors": "^2.8.5",
+    "mysql2": "^3.6.3",
+    "bcrypt": "^5.1.1"
   }
 }
  
