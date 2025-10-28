@@ -355,7 +355,10 @@ router.delete('/usuario/:id', async (req, res) => {
     }
 });
 
+
 // Ruta para recuperación de contraseña
+
+
 router.post('/recuperar-contrasena', async (req, res) => {
   try {
     const { email } = req.body;
@@ -397,6 +400,137 @@ router.post('/recuperar-contrasena', async (req, res) => {
   } catch (error) {
     console.error('Error al enviar correo de recuperación:', error);
     res.status(500).json({ success: false, message: 'Error interno al enviar el correo de recuperación.' });
+  }
+});
+
+
+
+// Ruta para restablecer contraseña
+
+
+router.post('/restablecer-contrasena', async (req, res) => {
+  try {
+    const { token, nuevaContrasena } = req.body;
+
+    // Validar que se proporcionen los campos necesarios
+    if (!token || !nuevaContrasena) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token y nueva contraseña son obligatorios'
+      });
+    }
+
+    // Validar la nueva contraseña
+    if (nuevaContrasena.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'La contraseña debe tener al menos 6 caracteres'
+      });
+    }
+
+    // Validar el token de recuperación
+    let id_usuario;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      id_usuario = decoded.id;
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token inválido o expirado'
+      });
+    }
+
+    // Verificar que el usuario existe
+    const [usuario] = await pool.execute(
+      'SELECT id_usuario FROM usuarios WHERE id_usuario = ?',
+      [id_usuario]
+    );
+
+    if (usuario.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    // Hashear la nueva contraseña
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(nuevaContrasena, saltRounds);
+
+    // Actualizar la contraseña en la base de datos
+    await pool.execute(
+      'UPDATE usuarios SET password = ? WHERE id_usuario = ?',
+      [hashedPassword, id_usuario]
+    );
+
+    res.json({
+      success: true,
+      message: 'Contraseña restablecida exitosamente'
+    });
+  } catch (error) {
+    console.error('Error al restablecer contraseña:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno al restablecer contraseña',
+      error: error.message
+    });
+  }
+});
+
+// Ruta para validar el token de recuperación
+router.post('/validar-token-recuperacion', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    // Validar que se proporcione el token
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token es obligatorio'
+      });
+    }
+
+    // Validar el token de recuperación
+    let id_usuario;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      id_usuario = decoded.id;
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token inválido o expirado'
+      });
+    }
+
+    // Verificar que el usuario existe
+    const [usuario] = await pool.execute(
+      'SELECT id_usuario, nombre, email FROM usuarios WHERE id_usuario = ?',
+      [id_usuario]
+    );
+
+    if (usuario.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuario no encontrado'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Token válido',
+      id_usuario: id_usuario,
+      usuario: {
+        nombre: usuario[0].nombre,
+        email: usuario[0].email
+      }
+    });
+  } catch (error) {
+    console.error('Error al validar token de recuperación:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno al validar token de recuperación',
+      error: error.message
+    });
   }
 });
 
