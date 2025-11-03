@@ -2,16 +2,38 @@
 // Peticiones http relacionadas con las canchas
 import { validarDatosCancha } from '../utils';
 
+
 const API_BASE_URL = 'http://localhost:3000/api';
+
+// Función para obtener el token de autenticación
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+        'Authorization': token ? `Bearer ${token}` : ''
+    };
+};
+
+// Función para manejar errores de la API
+const handleApiError = (error, customMessage) => {
+    console.error('Error en la petición:', error);
+    if (error.response) {
+        // El servidor respondió con un código de error
+        throw new Error(error.response.data?.message || customMessage);
+    } else if (error.request) {
+        // La petición fue hecha pero no se recibió respuesta
+        throw new Error('No se pudo conectar con el servidor. Verifica tu conexión.');
+    } else {
+        // Algo sucedió en la configuración de la petición
+        throw new Error(customMessage);
+    }
+};
 
 // Función para obtener todas las canchas
 export const obtenerCanchas = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/canchas`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
@@ -31,8 +53,8 @@ export const obtenerCanchaPorId = async (id) => {
     try {
         const response = await fetch(`${API_BASE_URL}/canchas/${id}`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
+            headers: { 
+                ...getAuthHeaders()     
             }
         });
 
@@ -54,7 +76,7 @@ export const obtenerCanchasDisponibles = async () => {
         const response = await fetch(`${API_BASE_URL}/canchas/disponibles`, {
             method: 'GET',
             headers: {
-                'Content-Type': 'application/json'
+                ...getAuthHeaders()
             }
         });
 
@@ -76,7 +98,7 @@ export const crearCancha = async (canchaData) => {
         const response = await fetch(`${API_BASE_URL}/canchas`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                ...getAuthHeaders()
             },
             body: JSON.stringify(canchaData)
         });
@@ -99,7 +121,7 @@ export const actualizarCancha = async (id, canchaData) => {
         const response = await fetch(`${API_BASE_URL}/canchas/${id}`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json'
+                ...getAuthHeaders()
             },
             body: JSON.stringify(canchaData)
         });
@@ -122,7 +144,7 @@ export const eliminarCancha = async (id) => {
         const response = await fetch(`${API_BASE_URL}/canchas/${id}`, {
             method: 'DELETE',
             headers: {
-                'Content-Type': 'application/json'
+                ...getAuthHeaders()
             }
         });
 

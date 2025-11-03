@@ -1,10 +1,30 @@
-const express = require('express');
+import express from 'express';
+import { body, param, query, validationResult } from 'express-validator';
+import { pool } from '../Config/db.js';
+import { enviarCorreo } from '../Servicios/EmailServicio.js';
+import { NotFoundError, BadRequestError } from '../utils/errors.js';
+import { protegerRuta, verificarRol } from '../Servicios/token.js';
+
 const router = express.Router();
-const { pool } = require('../Config/db');
-const { enviarCorreo } = require('../Servicios/EmailServicio');
+
+// Middleware de validación
+const validarCampos = (req, res, next) => {
+    const errores = validationResult(req);
+    if (!errores.isEmpty()) {
+        return res.status(400).json({
+            success: false,
+            errors: errores.array()
+        });
+    }
+    next();
+};
 
 // Ruta para obtener todos los turnos con paginación
-router.get('/turnos', async (req, res) => {
+router.get('/turnos', [
+    query('pagina').optional().isInt({ min: 1 }).withMessage('La página debe ser un número entero mayor a 0'),
+    query('limite').optional().isInt({ min: 1, max: 100 }).withMessage('El límite debe ser un número entre 1 y 100'),
+    validarCampos
+], async (req, res) => {
     try {
         const { pagina = 1, limite = 10 } = req.query; // Valores predeterminados
         const offset = (pagina - 1) * limite;
@@ -190,7 +210,18 @@ router.get('/turnos/fecha/:fecha', async (req, res) => {
 
 
 // Ruta para crear un nuevo turno 
-router.post('/turnos', async (req, res) => {
+router.post('/turnos', [
+    protegerRuta,
+    body('id_usuario').isInt().withMessage('ID de usuario inválido'),
+    body('id_cancha').isInt().withMessage('ID de cancha inválido'),
+    body('fecha_turno').isISO8601().withMessage('Fecha de turno inválida'),
+    body('duracion').isInt({ min: 30, max: 180 }).withMessage('La duración debe estar entre 30 y 180 minutos'),
+    body('precio').isFloat({ min: 0 }).withMessage('El precio debe ser un número positivo'),
+    body('estado').isIn(['reservado', 'cancelado', 'completado']).withMessage('Estado inválido'),
+    body('email').isEmail().withMessage('Email inválido'),
+    body('nombre').isString().notEmpty().withMessage('El nombre es requerido'),
+    validarCampos
+], async (req, res) => {
     try {
 
         const { id_usuario, id_cancha, fecha_turno, duracion, precio, estado, email, nombre } = req.body;
@@ -324,7 +355,17 @@ router.post('/turnos', async (req, res) => {
 // Ruta para actualizar un turno por ID
 
 // Permitir actualizaciones parciales en PUT /turnos/:id
-router.put('/turnos/:id', async (req, res) => {
+router.put('/turnos/:id', [
+    protegerRuta,
+    param('id').isInt().withMessage('ID de turno inválido'),
+    body('id_usuario').optional().isInt().withMessage('ID de usuario inválido'),
+    body('id_cancha').optional().isInt().withMessage('ID de cancha inválido'),
+    body('fecha_turno').optional().isISO8601().withMessage('Fecha de turno inválida'),
+    body('duracion').optional().isInt({ min: 30, max: 180 }).withMessage('La duración debe estar entre 30 y 180 minutos'),
+    body('precio').optional().isFloat({ min: 0 }).withMessage('El precio debe ser un número positivo'),
+    body('estado').optional().isIn(['reservado', 'cancelado', 'completado']).withMessage('Estado inválido'),
+    validarCampos
+], async (req, res) => {
     try {
         const { id } = req.params;
         const { id_usuario, id_cancha, fecha_turno, duracion, precio, estado } = req.body;
@@ -392,7 +433,12 @@ router.put('/turnos/:id', async (req, res) => {
 });
 
 // Ruta para eliminar un turno por ID
-router.delete('/turnos/:id', async (req, res) => {
+router.delete('/turnos/:id', [
+    protegerRuta,
+    verificarRol(['administrador']),
+    param('id').isInt().withMessage('ID de turno inválido'),
+    validarCampos
+], async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -428,4 +474,4 @@ router.delete('/turnos/:id', async (req, res) => {
     }
 });
 
-module.exports = router;
+export default router;

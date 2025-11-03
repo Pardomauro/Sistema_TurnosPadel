@@ -3,16 +3,30 @@
   "version": "1.0.0",
   "description": "Backend - Sistema de Turnos Pádel",
   "main": "app.js",
+  "type": "module",
   "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Mauro Pardo y Ezequiel Grasso",
   "license": "ISC",
   "dependencies": {
-    "express": "^5.1.0",
+    "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
-    "mysql2": "^3.6.3",
-    "bcrypt": "^5.1.1"
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.1",
+    "express-validator": "^7.3.0",
+    "helmet": "^7.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.1",
+    "mysql2": "^3.15.3",
+    "nodemailer": "^7.0.10"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1",
+    "postcss-import": "^16.1.1",
+    "postcss-nesting": "^13.0.2"
   }
 }
- 

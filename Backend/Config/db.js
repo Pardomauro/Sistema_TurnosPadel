@@ -1,7 +1,8 @@
-const mysql = require('mysql2/promise');
+import mysql from 'mysql2/promise';
+import { InternalServerError } from '../utils/errors.js';
+import 'dotenv/config';
 
-
-// Configuracion de la base de datos
+// Configuración de la base de datos
 
 const dbConfig = {
     host: process.env.DB_HOST || 'localhost',
@@ -9,11 +10,6 @@ const dbConfig = {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'sistema_turnos_padel',
     charset: 'utf8mb4'
-}
-
-// Validar variables de entorno
-if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
-    throw new Error('Faltan variables de entorno para la configuración de la base de datos. Por favor, verifica el archivo .env.');
 }
 
 // Creamos conexion a la base de datos
@@ -116,7 +112,7 @@ const inicializarDataBase = async () => {
     }
 }
 
-module.exports = {
+export {
     createConnection,
     pool,
     inicializarDataBase

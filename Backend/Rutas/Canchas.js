@@ -1,10 +1,21 @@
 
-const express = require('express');
+import express from 'express';
+import { body, param, validationResult } from 'express-validator';
+import { pool } from '../Config/db.js';
+
 const router = express.Router();
-const { pool } = require('../Config/db');
 
-
-
+// Middleware de validación
+const validarCampos = (req, res, next) => {
+    const errores = validationResult(req);
+    if (!errores.isEmpty()) {
+        return res.status(400).json({
+            success: false,
+            errors: errores.array()
+        });
+    }
+    next();
+};
 
 // GET /api/canchas - Obtener todas las canchas
 router.get('/canchas', async (req, res) => {
@@ -38,7 +49,10 @@ router.get('/canchas', async (req, res) => {
 });
 
 // GET /api/canchas/:id - Obtener una cancha específica por ID
-router.get('/canchas/:id', async (req, res) => {
+router.get('/canchas/:id', [
+    param('id').isInt().withMessage('El ID debe ser un número válido'),
+    validarCampos
+], async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -117,7 +131,7 @@ router.get('/canchas/disponibles', async (req, res) => {
 });
 
 // Ruta para verificar disponibilidad de canchas
-app.get('/api/turnos/disponibilidad', [
+router.get('/turnos/disponibilidad', [
   body('fecha').isISO8601().withMessage('La fecha debe estar en formato ISO8601 (YYYY-MM-DD)'),
   body('horaInicio').isString().withMessage('La hora de inicio es requerida'),
   body('horaFin').isString().withMessage('La hora de fin es requerida')
@@ -148,7 +162,20 @@ app.get('/api/turnos/disponibilidad', [
 
 
 // POST /api/canchas - Crear una nueva cancha
-router.post('/canchas', async (req, res) => {
+router.post('/canchas', [
+    body('precio')
+        .isFloat({ min: 0.01 })
+        .withMessage('El precio debe ser un número mayor a 0'),
+    body('en_mantenimiento')
+        .isBoolean()
+        .withMessage('El estado de mantenimiento debe ser true o false'),
+    body('horarios_disponibles')
+        .isArray()
+        .withMessage('Los horarios disponibles deben ser un array')
+        .notEmpty()
+        .withMessage('Debe proporcionar al menos un horario disponible'),
+    validarCampos
+], async (req, res) => {
     try {
         const { precio, en_mantenimiento = false, horarios_disponibles } = req.body;
 
@@ -217,7 +244,24 @@ router.post('/canchas', async (req, res) => {
 
 
 // PUT /api/canchas/:id - Actualizar una cancha existente
-router.put('/canchas/:id', async (req, res) => {
+router.put('/canchas/:id', [
+    param('id').isInt().withMessage('El ID debe ser un número válido'),
+    body('precio')
+        .optional()
+        .isFloat({ min: 0.01 })
+        .withMessage('El precio debe ser un número mayor a 0'),
+    body('en_mantenimiento')
+        .optional()
+        .isBoolean()
+        .withMessage('El estado de mantenimiento debe ser true o false'),
+    body('horarios_disponibles')
+        .optional()
+        .isArray()
+        .withMessage('Los horarios disponibles deben ser un array')
+        .notEmpty()
+        .withMessage('Debe proporcionar al menos un horario disponible'),
+    validarCampos
+], async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -317,7 +361,10 @@ router.put('/canchas/:id', async (req, res) => {
 });
 
 // DELETE /api/canchas/:id - Eliminar una cancha
-router.delete('/canchas/:id', async (req, res) => {
+router.delete('/canchas/:id', [
+    param('id').isInt().withMessage('El ID debe ser un número válido'),
+    validarCampos
+], async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -372,4 +419,4 @@ router.delete('/canchas/:id', async (req, res) => {
     }
 });
 
-module.exports = router; 
+export default router;

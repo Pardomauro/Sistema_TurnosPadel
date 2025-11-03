@@ -1,31 +1,50 @@
-const express = require('express');
-const cors = require('cors');
-const { inicializarDataBase } = require('./Config/db');
-
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import { inicializarDataBase } from './Config/db.js';
+import 'dotenv/config';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Configuración de rate limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutos
+    max: 100 // límite de 100 peticiones por ventana por IP
+});
+
 // Middleware
-app.use(cors());
+app.use(helmet()); // Seguridad HTTP
+app.use(morgan('dev')); // Logging de solicitudes
+app.use(cors({
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(limiter); // Aplicar rate limiting a todas las rutas
 
 // Rutas
-app.use('/api', require('./Rutas/Turnos'));
-app.use('/api', require('./Rutas/Usuario'));
-app.use('/api', require('./Rutas/Canchas'));
+import rutasTurnos from './Rutas/Turnos.js';
+import rutasUsuario from './Rutas/Usuario.js';
+import rutasCanchas from './Rutas/Canchas.js';
+
+app.use('/api/turnos', rutasTurnos);
+app.use('/api/usuarios', rutasUsuario);
+app.use('/api/canchas', rutasCanchas);
+
+// Importar manejadores de errores
+import { NotFoundError, globalErrorHandler } from './utils/errors.js';
 
 // Middleware para manejar errores 404 (ruta no encontrada)
 app.use((req, res, next) => {
-  res.status(404).json({ error: 'Ruta no encontrada' });
+    next(new NotFoundError(`No se encontró la ruta ${req.originalUrl} en este servidor`));
 });
 
-// Manejo de errores
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Algo salió mal!' });
-});
+// Manejo global de errores
+app.use(globalErrorHandler);
 
 // Inicializar la base de datos y luego iniciar el servidor
 const iniciarServidor = async () => {
@@ -33,13 +52,17 @@ const iniciarServidor = async () => {
         await inicializarDataBase();
         app.listen(PORT, () => {
             console.log(`Servidor en ejecución en el puerto ${PORT}`);
+            console.log(`Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
         });
     } catch (error) {
-        console.error('No se pudo iniciar el servidor debido a un error en la base de datos:', error);
+        console.error('Error al iniciar el servidor:', error);
         process.exit(1);
     }
-
 };
 
+iniciarServidor().catch(error => {
+    console.error('Error al iniciar el servidor:', error);
+    process.exit(1);
+});
 
-module.exports = { app, iniciarServidor };
+export { app, iniciarServidor };

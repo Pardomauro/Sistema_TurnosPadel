@@ -1,16 +1,32 @@
-const express = require('express');
+import express from 'express';
+import { body, param, validationResult } from 'express-validator';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import { pool } from '../Config/db.js';
+import { enviarCorreo } from '../Servicios/EmailServicio.js';
+import { generarToken, verificarToken, protegerRuta, verificarRol } from '../Servicios/token.js';
+import { NotFoundError, BadRequestError, UnauthorizedError } from '../utils/errors.js';
+
 const router = express.Router();
-const { pool } = require('../Config/db');
-const bcrypt = require('bcrypt');
-const { enviarCorreo } = require('../Servicios/EmailServicio');
-const jwt = require('jsonwebtoken');
-const { generarTokenRecuperacion } = require('../Servicios/token');
 
-
+// Middleware de validación
+const validarCampos = (req, res, next) => {
+    const errores = validationResult(req);
+    if (!errores.isEmpty()) {
+        return res.status(400).json({
+            success: false,
+            errors: errores.array()
+        });
+    }
+    next();
+};
 
 // Ruta para obtener todos los usuarios
 
-router.get('/usuarios', async (req, res) => {
+router.get('/usuarios', [
+    protegerRuta,
+    verificarRol(['administrador'])
+], async (req, res) => {
     try {
         const [rows] = await pool.query(`SELECT 
             id_usuario, 
@@ -96,7 +112,25 @@ const validarEmail = (email) => {
 
 // Ruta para "registrar" un nuevo usuario (crear cuenta)
 
-router.post('/usuarios/registrar', async (req, res) => {
+router.post('/usuarios/registrar', [
+    body('nombre')
+        .trim()
+        .isLength({ min: 2, max: 100 })
+        .withMessage('El nombre debe tener entre 2 y 100 caracteres'),
+    body('email')
+        .trim()
+        .isEmail()
+        .withMessage('Email inválido')
+        .normalizeEmail(),
+    body('password')
+        .isLength({ min: 6 })
+        .withMessage('La contraseña debe tener al menos 6 caracteres')
+        .matches(/\d/)
+        .withMessage('La contraseña debe contener al menos un número')
+        .matches(/[A-Z]/)
+        .withMessage('La contraseña debe contener al menos una mayúscula'),
+    validarCampos
+], async (req, res) => {
     try {
         const { nombre, email, password } = req.body;
 
@@ -167,7 +201,17 @@ router.post('/usuarios/registrar', async (req, res) => {
 
 
 // Ruta para login de usuario (iniciar sesión)
-router.post('/usuarios/login', async (req, res) => {
+router.post('/usuarios/login', [
+    body('email')
+        .trim()
+        .isEmail()
+        .withMessage('Email inválido')
+        .normalizeEmail(),
+    body('password')
+        .notEmpty()
+        .withMessage('La contraseña es requerida'),
+    validarCampos
+], async (req, res) => {
     try{
         const { email, password } = req.body;
 
@@ -228,7 +272,30 @@ router.post('/usuarios/login', async (req, res) => {
 
 
 // Ruta para actualizar un usuario existente
-router.put('/usuarios/:id', async (req, res) => {
+router.put('/usuarios/:id', [
+    protegerRuta,
+    param('id').isInt().withMessage('ID de usuario inválido'),
+    body('nombre')
+        .optional()
+        .trim()
+        .isLength({ min: 2, max: 100 })
+        .withMessage('El nombre debe tener entre 2 y 100 caracteres'),
+    body('email')
+        .optional()
+        .trim()
+        .isEmail()
+        .withMessage('Email inválido')
+        .normalizeEmail(),
+    body('password')
+        .optional()
+        .isLength({ min: 6 })
+        .withMessage('La contraseña debe tener al menos 6 caracteres')
+        .matches(/\d/)
+        .withMessage('La contraseña debe contener al menos un número')
+        .matches(/[A-Z]/)
+        .withMessage('La contraseña debe contener al menos una mayúscula'),
+    validarCampos
+], async (req, res) => {
     try {
         const { id } = req.params;
         const { nombre, email, password } = req.body;
@@ -359,7 +426,14 @@ router.delete('/usuario/:id', async (req, res) => {
 // Ruta para recuperación de contraseña
 
 
-router.post('/recuperar-contrasena', async (req, res) => {
+router.post('/recuperar-contrasena', [
+    body('email')
+        .trim()
+        .isEmail()
+        .withMessage('Email inválido')
+        .normalizeEmail(),
+    validarCampos
+], async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -408,7 +482,19 @@ router.post('/recuperar-contrasena', async (req, res) => {
 // Ruta para restablecer contraseña
 
 
-router.post('/restablecer-contrasena', async (req, res) => {
+router.post('/restablecer-contrasena', [
+    body('token')
+        .notEmpty()
+        .withMessage('El token es requerido'),
+    body('nuevaContrasena')
+        .isLength({ min: 6 })
+        .withMessage('La contraseña debe tener al menos 6 caracteres')
+        .matches(/\d/)
+        .withMessage('La contraseña debe contener al menos un número')
+        .matches(/[A-Z]/)
+        .withMessage('La contraseña debe contener al menos una mayúscula'),
+    validarCampos
+], async (req, res) => {
   try {
     const { token, nuevaContrasena } = req.body;
 
@@ -478,7 +564,12 @@ router.post('/restablecer-contrasena', async (req, res) => {
 });
 
 // Ruta para validar el token de recuperación
-router.post('/validar-token-recuperacion', async (req, res) => {
+router.post('/validar-token-recuperacion', [
+    body('token')
+        .notEmpty()
+        .withMessage('El token es requerido'),
+    validarCampos
+], async (req, res) => {
   try {
     const { token } = req.body;
 
@@ -534,4 +625,4 @@ router.post('/validar-token-recuperacion', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

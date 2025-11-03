@@ -1,4 +1,10 @@
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
+import { InternalServerError } from '../utils/errors.js';
+
+// Validar configuración de email
+if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    throw new InternalServerError('Faltan las credenciales de email en las variables de entorno');
+}
 
 // Configuración del transportador de correo
 const transporter = nodemailer.createTransport({
@@ -28,6 +34,4 @@ const enviarCorreo = async ({ destinatario, asunto, contenidoHTML }) => {
     }
 };
 
-module.exports = {
-    enviarCorreo
-};
+export { enviarCorreo };

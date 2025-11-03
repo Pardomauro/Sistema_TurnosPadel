@@ -4,14 +4,21 @@ import { validarDatosReserva } from '../utils';
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
+
+// Helper para crear headers con Authorization si existe token
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+};
+
 // Función para obtener todas las reservas (solo administrador)
 export const obtenerReservas = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/turnos`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
@@ -31,9 +38,7 @@ export const obtenerReservaPorId = async (id) => {
     try {
         const response = await fetch(`${API_BASE_URL}/turnos/${id}`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
@@ -62,9 +67,7 @@ export const crearReserva = async (reserva) => {
     try {
         const response = await fetch(`${API_BASE_URL}/turnos`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(reserva)
         });
 
@@ -85,9 +88,7 @@ export const actualizarReserva = async (id, reserva) => {
     try {
         const response = await fetch(`${API_BASE_URL}/turnos/${id}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(reserva)
         });
 
@@ -107,9 +108,7 @@ export const eliminarReserva = async (id) => {
     try {
         const response = await fetch(`${API_BASE_URL}/turnos/${id}`, {
             method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
@@ -133,9 +132,7 @@ export const verificarDisponibilidadCancha = async (id_cancha, fecha, hora) => {
     try {
         const response = await fetch(`${API_BASE_URL}/turnos/disponibilidad/${id_cancha}/${fecha}/${hora}`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
@@ -155,13 +152,38 @@ export const obtenerTurnosPorFecha = async (fecha) => {
     try {
         const response = await fetch(`${API_BASE_URL}/turnos/fecha/${fecha}`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
             throw new Error('Error al obtener los turnos por fecha');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para obtener turnos disponibles (wrapper práctico)
+// Si se pasa `fecha` filtra por fecha, si se pasa `id_cancha` filtra por cancha
+export const obtenerTurnosDisponibles = async (fecha = '', id_cancha = '') => {
+    try {
+        let url = `${API_BASE_URL}/turnos`;
+        const params = [];
+        if (fecha) params.push(`fecha=${encodeURIComponent(fecha)}`);
+        if (id_cancha) params.push(`id_cancha=${encodeURIComponent(id_cancha)}`);
+        if (params.length) url += `?${params.join('&')}`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al obtener los turnos disponibles');
         }
 
         const data = await response.json();
@@ -177,9 +199,7 @@ export const obtenerReservasPaginadas = async (pagina = 1, limite = 10) => {
     try {
         const response = await fetch(`${API_BASE_URL}/turnos?pagina=${pagina}&limite=${limite}`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
@@ -200,9 +220,7 @@ export const actualizarReservaParcial = async (id, camposActualizar) => {
     try {
         const response = await fetch(`${API_BASE_URL}/turnos/${id}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(camposActualizar)
         });
 
@@ -221,4 +239,22 @@ export const actualizarReservaParcial = async (id, camposActualizar) => {
 // Las funciones de validación se movieron a ../utils/validations.js
 // Importar validarDatosReserva si necesitas validar datos antes de enviarlos
 
+export const obtenerReservaUsuario = async (userId) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos/usuario/${userId}`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al obtener la reserva del usuario');
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
 
