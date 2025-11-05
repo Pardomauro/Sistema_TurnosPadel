@@ -2,6 +2,22 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { obtenerCanchaPorId } from '../../api/canchas';
 
+// Función helper para parsear horarios de forma segura
+const parseHorarios = (horarios) => {
+    try {
+        if (!horarios) return [];
+        if (Array.isArray(horarios)) return horarios;
+        if (typeof horarios === 'string') {
+            const parsed = JSON.parse(horarios);
+            return Array.isArray(parsed) ? parsed : [];
+        }
+        return [];
+    } catch (error) {
+        console.warn('Error parsing horarios:', error);
+        return [];
+    }
+};
+
 export default function DetalleCancha() {
     const { id } = useParams();
     const [cancha, setCancha] = useState(null);
@@ -41,7 +57,7 @@ export default function DetalleCancha() {
         <div className="container mx-auto px-4 py-8">
             <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
                 <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-2xl font-bold">Cancha {cancha.numero}</h1>
+                    <h1 className="text-2xl font-bold">Cancha {cancha.id_cancha}</h1>
                     <Link 
                         to="/canchas"
                         className="text-blue-500 hover:text-blue-700"
@@ -55,50 +71,64 @@ export default function DetalleCancha() {
                         <h2 className="text-lg font-semibold">Información General</h2>
                         <div className="mt-2 grid grid-cols-2 gap-4">
                             <div>
-                                <p className="text-gray-600">Tipo</p>
-                                <p className="font-medium">{cancha.tipo}</p>
+                                <p className="text-gray-600">ID</p>
+                                <p className="font-medium">{cancha.id_cancha}</p>
                             </div>
                             <div>
                                 <p className="text-gray-600">Estado</p>
                                 <p className={`font-medium ${
-                                    cancha.estado === 'disponible' ? 'text-green-600' : 'text-red-600'
+                                    !cancha.en_mantenimiento ? 'text-green-600' : 'text-red-600'
                                 }`}>
-                                    {cancha.estado.charAt(0).toUpperCase() + cancha.estado.slice(1)}
+                                    {!cancha.en_mantenimiento ? 'Disponible' : 'En Mantenimiento'}
                                 </p>
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <h2 className="text-lg font-semibold">Características</h2>
+                        <h2 className="text-lg font-semibold">Precio</h2>
                         <div className="mt-2">
-                            <p className="text-gray-600">Superficie</p>
-                            <p className="font-medium">{cancha.superficie}</p>
+                            <p className="text-2xl font-bold text-green-600">
+                                ${cancha.precio?.toLocaleString()}
+                            </p>
+                            <p className="text-gray-600 text-sm">por turno</p>
                         </div>
-                        {cancha.techada && (
-                            <div className="mt-2">
-                                <p className="text-gray-600">Techada</p>
-                                <p className="font-medium">Sí</p>
-                            </div>
-                        )}
                     </div>
 
                     <div>
-                        <h2 className="text-lg font-semibold">Tarifas</h2>
+                        <h2 className="text-lg font-semibold">Horarios Disponibles</h2>
+                        <div className="mt-2">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {(Array.isArray(cancha.horarios_disponibles) ? cancha.horarios_disponibles : parseHorarios(cancha.horarios_disponibles)).map((horario, index) => (
+                                    <div key={index} className="bg-gray-100 px-3 py-2 rounded text-center">
+                                        {horario}
+                                    </div>
+                                ))}
+                            </div>
+                            {(Array.isArray(cancha.horarios_disponibles) ? cancha.horarios_disponibles : parseHorarios(cancha.horarios_disponibles)).length === 0 && (
+                                <p className="text-gray-500 italic">No hay horarios disponibles</p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h2 className="text-lg font-semibold">Fechas de Registro</h2>
                         <div className="mt-2 space-y-2">
-                            {cancha.tarifas && Object.entries(cancha.tarifas).map(([horario, precio]) => (
-                                <div key={horario} className="flex justify-between">
-                                    <span className="text-gray-600">{horario}</span>
-                                    <span className="font-medium">${precio}</span>
-                                </div>
-                            ))}
+                            <div>
+                                <p className="text-gray-600">Creada el:</p>
+                                <p className="font-medium">{new Date(cancha.fecha_creacion).toLocaleString()}</p>
+                            </div>
+                            <div>
+                                <p className="text-gray-600">Última actualización:</p>
+                                <p className="font-medium">{new Date(cancha.fecha_actualizacion).toLocaleString()}</p>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div className="mt-8 flex justify-end space-x-4">
                     <Link 
-                        to={`/canchas/editar/${cancha._id}`}
+                        to={`/canchas/editar/${cancha.id_cancha}`}
                         className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
                     >
                         Editar Cancha

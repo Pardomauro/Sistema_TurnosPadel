@@ -1,12 +1,18 @@
-import { useState } from 'react'
+import { AuthProvider } from './context/AuthContext'
 import RutasApp from './components/rutas/RutasApp'
+import NavBar from './components/navegacion/NavBar'
 import './App.css'
 
 function App() {
   return (
-    <div className="min-h-screen bg-gray-100">
-      <RutasApp />
-    </div>
+    <AuthProvider>
+      <div className="min-h-screen bg-gray-100">
+        <NavBar />
+        <main className="container mx-auto">
+          <RutasApp />
+        </main>
+      </div>
+    </AuthProvider>
   )
 }
 

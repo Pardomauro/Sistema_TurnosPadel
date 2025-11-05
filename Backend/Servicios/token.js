@@ -34,6 +34,15 @@ export function protegerRuta(req, res, next) {
             throw new UnauthorizedError('No se proporcionó token de autenticación');
         }
 
+        // En entornos de desarrollo aceptamos tokens temporales de administrador
+        // con prefijo `admin-token-`. Esto permite loguear al admin desde el
+        // frontend sin un JWT real durante el desarrollo. En producción
+        // siempre se requiere un JWT válido.
+        if (process.env.NODE_ENV !== 'production' && typeof token === 'string' && token.startsWith('admin-token-')) {
+            req.usuario = { id: 'admin-1', rol: 'administrador', email: 'admin@local' };
+            return next();
+        }
+
         const decoded = verificarToken(token);
         req.usuario = decoded;
         next();

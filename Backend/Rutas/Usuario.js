@@ -1,29 +1,30 @@
 import express from 'express';
-import { body, param, validationResult } from 'express-validator';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { pool } from '../Config/db.js';
 import { enviarCorreo } from '../Servicios/EmailServicio.js';
-import { generarToken, verificarToken, protegerRuta, verificarRol } from '../Servicios/token.js';
-import { NotFoundError, BadRequestError, UnauthorizedError } from '../utils/errors.js';
+import { generarToken, protegerRuta, verificarRol } from '../Servicios/token.js';
+import {
+    validarCampos,
+    manejarErrorServidor,
+    validacionesRegistroUsuario,
+    validacionesLogin,
+    validacionesCrearUsuario,
+    validacionesObtenerUsuario,
+    validacionesActualizarUsuario,
+    validacionesEliminarUsuario,
+    validacionesRecuperarContrasena,
+    validacionesVerificarCodigo,
+    validacionesRestablecerContrasena,
+    validacionesValidarToken
+} from '../middlewares/index.js';
+import { validarEmail, validarCamposActualizacion } from '../middlewares/helpers.js';
 
 const router = express.Router();
 
-// Middleware de validación
-const validarCampos = (req, res, next) => {
-    const errores = validationResult(req);
-    if (!errores.isEmpty()) {
-        return res.status(400).json({
-            success: false,
-            errors: errores.array()
-        });
-    }
-    next();
-};
-
 // Ruta para obtener todos los usuarios
 
-router.get('/usuarios', [
+router.get('/', [
     protegerRuta,
     verificarRol(['administrador'])
 ], async (req, res) => {
@@ -33,7 +34,7 @@ router.get('/usuarios', [
             nombre,  
             email 
             FROM usuarios
-            ORDER BY id ASC
+            ORDER BY id_usuario ASC
     `);
 
         res.status(200).json({
@@ -41,34 +42,68 @@ router.get('/usuarios', [
             message: 'Usuarios obtenidos correctamente',
             data: rows,
             total: rows.length
-
         });
-
 
     } catch (error) {
-        console.error('Error al obtener los usuarios:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno al obtener los usuarios',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'obtener usuarios', res);
     }
 });
 
-
-// Obtenemos usuario específico por su ID
-
-router.get('/usuarios/:id', async (req, res) => {
+// Ruta para crear un nuevo usuario (solo administrador)
+router.post('/', [
+    protegerRuta,
+    verificarRol(['administrador']),
+    ...validacionesCrearUsuario,
+    validarCampos
+], async (req, res) => {
     try {
-        const { id } = req.params;
+        const { nombre, email, password } = req.body;
 
-        // Validar que el ID sea un número válido
-        if (!id || isNaN(id)) {
+        // Verificar si el email ya existe
+        const [existingUser] = await pool.query(
+            'SELECT id_usuario FROM usuarios WHERE email = ?',
+            [email]
+        );
+
+        if (existingUser.length > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'ID de usuario inválido'
+                message: 'El email ya está registrado'
             });
         }
+
+        // Encriptar la contraseña
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+        // Insertar el nuevo usuario
+        const [result] = await pool.query(
+            'INSERT INTO usuarios (nombre, email, password) VALUES (?, ?, ?)',
+            [nombre, email, hashedPassword]
+        );
+
+        res.status(201).json({
+            success: true,
+            message: 'Usuario creado exitosamente',
+            data: {
+                id_usuario: result.insertId,
+                nombre,
+                email
+            }
+        });
+
+    } catch (error) {
+        return manejarErrorServidor(error, 'crear usuario', res);
+    }
+});
+
+// Obtenemos usuario específico por su ID
+router.get('/:id', [
+    ...validacionesObtenerUsuario,
+    validarCampos
+], async (req, res) => {
+    try {
+        const { id } = req.params;
 
         const [rows] = await pool.query(`SELECT 
             id_usuario, 
@@ -91,44 +126,17 @@ router.get('/usuarios/:id', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error al obtener el usuario:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno al obtener el usuario',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'obtener usuario específico', res);
     }
 });
 
 
-// Función para validar el formato del email
 
-const validarEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-
-};
 
 
 // Ruta para "registrar" un nuevo usuario (crear cuenta)
-
-router.post('/usuarios/registrar', [
-    body('nombre')
-        .trim()
-        .isLength({ min: 2, max: 100 })
-        .withMessage('El nombre debe tener entre 2 y 100 caracteres'),
-    body('email')
-        .trim()
-        .isEmail()
-        .withMessage('Email inválido')
-        .normalizeEmail(),
-    body('password')
-        .isLength({ min: 6 })
-        .withMessage('La contraseña debe tener al menos 6 caracteres')
-        .matches(/\d/)
-        .withMessage('La contraseña debe contener al menos un número')
-        .matches(/[A-Z]/)
-        .withMessage('La contraseña debe contener al menos una mayúscula'),
+router.post('/registrar', [
+    ...validacionesRegistroUsuario,
     validarCampos
 ], async (req, res) => {
     try {
@@ -153,7 +161,7 @@ router.post('/usuarios/registrar', [
 
         // Verificar si el usuario existe
         const [usuarioExistente] = await pool.execute(
-            'SELECT id FROM usuarios WHERE email = ?',
+            'SELECT id_usuario FROM usuarios WHERE email = ?',
             [email.toLowerCase()]
         );
         
@@ -186,30 +194,16 @@ router.post('/usuarios/registrar', [
             user: nuevoUsuario[0]
         });
 
-
-
     } catch (error) {
-        console.error('Error al crear el usuario:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno al crear el usuario',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'registrar usuario', res);
     }
 });
 
 
 
 // Ruta para login de usuario (iniciar sesión)
-router.post('/usuarios/login', [
-    body('email')
-        .trim()
-        .isEmail()
-        .withMessage('Email inválido')
-        .normalizeEmail(),
-    body('password')
-        .notEmpty()
-        .withMessage('La contraseña es requerida'),
+router.post('/login', [
+    ...validacionesLogin,
     validarCampos
 ], async (req, res) => {
     try{
@@ -225,7 +219,7 @@ router.post('/usuarios/login', [
 
         // Buscar usuario por email
         const [usuarios] = await pool.execute(
-            'SELECT id_usuario, nombre, email, password FROM usuarios WHERE email = ?',
+            'SELECT id_usuario, nombre, email, password, rol FROM usuarios WHERE email = ?',
             [email.toLowerCase()]
         ); 
 
@@ -250,50 +244,36 @@ router.post('/usuarios/login', [
             });
         }
 
+        // Generar token JWT
+        const token = generarToken({
+            id: usuario.id_usuario,
+            email: usuario.email,
+            rol: usuario.rol || 'usuario'
+        });
+
         // Remover la contraseña antes de enviar la respuesta
         const { password: _, ...usuarioSinPassword } = usuario;
 
         res.json({
             success: true,
             message: 'Inicio de sesión exitoso',
+            token: token,
+            userId: usuario.id_usuario,
+            role: usuario.rol || 'usuario',
             user: usuarioSinPassword
         });
 
     } catch (error) {
-        console.error('Error al iniciar sesión:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno al iniciar sesión',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'iniciar sesión', res);
     }
 });
  
 
 
 // Ruta para actualizar un usuario existente
-router.put('/usuarios/:id', [
+router.put('/:id', [
     protegerRuta,
-    param('id').isInt().withMessage('ID de usuario inválido'),
-    body('nombre')
-        .optional()
-        .trim()
-        .isLength({ min: 2, max: 100 })
-        .withMessage('El nombre debe tener entre 2 y 100 caracteres'),
-    body('email')
-        .optional()
-        .trim()
-        .isEmail()
-        .withMessage('Email inválido')
-        .normalizeEmail(),
-    body('password')
-        .optional()
-        .isLength({ min: 6 })
-        .withMessage('La contraseña debe tener al menos 6 caracteres')
-        .matches(/\d/)
-        .withMessage('La contraseña debe contener al menos un número')
-        .matches(/[A-Z]/)
-        .withMessage('La contraseña debe contener al menos una mayúscula'),
+    ...validacionesActualizarUsuario,
     validarCampos
 ], async (req, res) => {
     try {
@@ -313,11 +293,12 @@ router.put('/usuarios/:id', [
             });
         }
 
-        // Validar los campos proporcionados
-        if (!nombre || !email) {
+        // Validar que al menos un campo sea enviado para actualizar
+        const camposPermitidos = ['nombre', 'email', 'password'];
+        if (!validarCamposActualizacion(req.body, camposPermitidos)) {
             return res.status(400).json({
                 success: false,
-                message: 'Nombre y email son obligatorios'
+                message: 'Debe proporcionar al menos un campo para actualizar'
             });
         }
 
@@ -375,18 +356,16 @@ router.put('/usuarios/:id', [
         });
 
     } catch (error) {
-        console.error('Error al actualizar usuario:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno al actualizar usuario',
-            error: error.message
-        }); 
+        return manejarErrorServidor(error, 'actualizar usuario', res);
     }
 });
  
  
 // Ruta para eliminar un usuario   
-router.delete('/usuario/:id', async (req, res) => {
+router.delete('/:id', [
+    ...validacionesEliminarUsuario,
+    validarCampos
+], async (req, res) => {
     try {
         const { id } = req.params; // Corregido: Extraer correctamente el parámetro
 
@@ -413,12 +392,7 @@ router.delete('/usuario/:id', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error al eliminar usuario:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno al eliminar usuario',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'eliminar usuario', res);
     }
 });
 
@@ -427,11 +401,7 @@ router.delete('/usuario/:id', async (req, res) => {
 
 
 router.post('/recuperar-contrasena', [
-    body('email')
-        .trim()
-        .isEmail()
-        .withMessage('Email inválido')
-        .normalizeEmail(),
+    ...validacionesRecuperarContrasena,
     validarCampos
 ], async (req, res) => {
   try {
@@ -452,25 +422,40 @@ router.post('/recuperar-contrasena', [
 
     const usuarioEncontrado = usuario[0];
 
-    // Generar un token de recuperación
-    const token = generarTokenRecuperacion(usuarioEncontrado.id_usuario);
+    // Generar código de verificación de 6 dígitos
+    const codigoVerificacion = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Establecer tiempo de expiración (15 minutos)
+    const tiempoExpiracion = new Date();
+    tiempoExpiracion.setMinutes(tiempoExpiracion.getMinutes() + 15);
 
-    // Enviar correo con el enlace de recuperación
-    const enlaceRecuperacion = `https://tu-dominio.com/recuperar-contrasena?token=${token}`;
+    // Guardar código de verificación en la base de datos
+    await pool.execute(
+      'UPDATE usuarios SET codigo_verificacion = ?, codigo_expiracion = ? WHERE id_usuario = ?',
+      [codigoVerificacion, tiempoExpiracion, usuarioEncontrado.id_usuario]
+    );
+
+    // Enviar correo con el código de verificación
     await enviarCorreo({
       destinatario: email,
-      asunto: 'Recuperación de Contraseña',
+      asunto: 'Código de Verificación - Sistema Turnos Padel',
       contenidoHTML: `
-        <h1>Recuperación de Contraseña</h1>
-        <p>Hola ${usuarioEncontrado.nombre},</p>
-        <p>Hemos recibido una solicitud para restablecer tu contraseña.</p>
-        <p>Puedes restablecerla haciendo clic en el siguiente enlace:</p>
-        <a href="${enlaceRecuperacion}">Restablecer Contraseña</a>
-        <p>Si no solicitaste este cambio, ignora este correo.</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333; text-align: center;">Recuperación de Contraseña</h2>
+          <p>Hola ${usuarioEncontrado.nombre},</p>
+          <p>Has solicitado restablecer tu contraseña.</p>
+          <p>Tu código de verificación es:</p>
+          <div style="background-color: #f0f0f0; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
+            <h1 style="color: #4CAF50; margin: 0; font-size: 32px; letter-spacing: 8px;">${codigoVerificacion}</h1>
+          </div>
+          <p><strong>Este código expirará en 15 minutos.</strong></p>
+          <p>Ingresa este código en la página de recuperación de contraseña para continuar.</p>
+          <p>Si no solicitaste este cambio, puedes ignorar este email.</p>
+        </div>
       `,
     });
 
-    res.status(200).json({ success: true, message: 'Correo de recuperación enviado.' });
+    res.status(200).json({ success: true, message: 'Se ha enviado un código de verificación a tu email' });
   } catch (error) {
     console.error('Error al enviar correo de recuperación:', error);
     res.status(500).json({ success: false, message: 'Error interno al enviar el correo de recuperación.' });
@@ -479,20 +464,76 @@ router.post('/recuperar-contrasena', [
 
 
 
-// Ruta para restablecer contraseña
+// Ruta para verificar código y restablecer contraseña
+router.post('/verificar-codigo', [
+    ...validacionesVerificarCodigo,
+    validarCampos
+], async (req, res) => {
+  try {
+    const { email, codigo, nuevaContrasena } = req.body;
+
+    // Buscar usuario con el código de verificación
+    const [usuario] = await pool.execute(
+      'SELECT id_usuario, codigo_verificacion, codigo_expiracion FROM usuarios WHERE email = ? AND codigo_verificacion = ?',
+      [email.toLowerCase(), codigo]
+    );
+
+    if (usuario.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Código de verificación inválido'
+      });
+    }
+
+    const usuarioEncontrado = usuario[0];
+
+    // Verificar si el código ha expirado
+    const ahora = new Date();
+    const expiracion = new Date(usuarioEncontrado.codigo_expiracion);
+    
+    if (ahora > expiracion) {
+      // Limpiar código expirado
+      await pool.execute(
+        'UPDATE usuarios SET codigo_verificacion = NULL, codigo_expiracion = NULL WHERE id_usuario = ?',
+        [usuarioEncontrado.id_usuario]
+      );
+      
+      return res.status(400).json({
+        success: false,
+        message: 'El código de verificación ha expirado. Solicita uno nuevo.'
+      });
+    }
+
+    // Encriptar la nueva contraseña
+    const saltRounds = 10;
+    const hashContrasena = await bcrypt.hash(nuevaContrasena, saltRounds);
+
+    // Actualizar contraseña y limpiar código de verificación
+    await pool.execute(
+      'UPDATE usuarios SET password = ?, codigo_verificacion = NULL, codigo_expiracion = NULL WHERE id_usuario = ?',
+      [hashContrasena, usuarioEncontrado.id_usuario]
+    );
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Contraseña actualizada correctamente' 
+    });
+
+  } catch (error) {
+    console.error('Error al verificar código:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno al verificar el código' 
+    });
+  }
+});
+
+
+// Ruta para restablecer contraseña (mantenida para compatibilidad)
 
 
 router.post('/restablecer-contrasena', [
-    body('token')
-        .notEmpty()
-        .withMessage('El token es requerido'),
-    body('nuevaContrasena')
-        .isLength({ min: 6 })
-        .withMessage('La contraseña debe tener al menos 6 caracteres')
-        .matches(/\d/)
-        .withMessage('La contraseña debe contener al menos un número')
-        .matches(/[A-Z]/)
-        .withMessage('La contraseña debe contener al menos una mayúscula'),
+    ...validacionesRestablecerContrasena,
     validarCampos
 ], async (req, res) => {
   try {
@@ -565,9 +606,7 @@ router.post('/restablecer-contrasena', [
 
 // Ruta para validar el token de recuperación
 router.post('/validar-token-recuperacion', [
-    body('token')
-        .notEmpty()
-        .withMessage('El token es requerido'),
+    ...validacionesValidarToken,
     validarCampos
 ], async (req, res) => {
   try {

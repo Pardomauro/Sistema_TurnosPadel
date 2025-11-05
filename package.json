@@ -1,7 +1,23 @@
 {
-  "dependencies": {
-    "date-fns": "^4.1.0",
-    "react-big-calendar": "^1.19.4",
-    "react-router-dom": "^7.9.5"
-  }
+  "name": "sistema-turnos-padel",
+  "version": "1.0.0",
+  "description": "Sistema completo de turnos de pádel - Backend y Frontend",
+  "scripts": {
+    "dev": "cd Frontend/Frontend-TurnosPadel && npm run dev",
+    "install:all": "npm run install:backend && npm run install:frontend",
+    "install:backend": "cd Backend && npm install",
+    "install:frontend": "cd Frontend/Frontend-TurnosPadel && npm install",
+    "start:backend": "cd Backend && npm run dev",
+    "start:frontend": "cd Frontend/Frontend-TurnosPadel && npm run frontend",
+    "build:frontend": "cd Frontend/Frontend-TurnosPadel && npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pardomauro/Sistema_TurnosPadel.git"
+  },
+  "authors": [
+    "Mauro Pardo",
+    "Ezequiel Grasso"
+  ],
+  "license": "MIT"
 }

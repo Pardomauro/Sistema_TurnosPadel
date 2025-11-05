@@ -1,28 +1,27 @@
 import express from 'express';
-import { body, param, query, validationResult } from 'express-validator';
 import { pool } from '../Config/db.js';
 import { enviarCorreo } from '../Servicios/EmailServicio.js';
-import { NotFoundError, BadRequestError } from '../utils/errors.js';
 import { protegerRuta, verificarRol } from '../Servicios/token.js';
+import {
+    validarCampos,
+    manejarErrorServidor,
+    validacionesPaginacion,
+    validacionesObtenerTurno,
+    validacionesTurnosPorUsuario,
+    validacionesDisponibilidadTurno,
+    validacionesHorariosDisponibles,
+    validacionesTurnosPorFecha,
+    validacionesCrearTurno,
+    validacionesActualizarTurno,
+    validacionesEliminarTurno
+} from '../middlewares/index.js';
+import { convertirFechaMySQL, validarDisponibilidadHorario, validarCamposActualizacion } from '../middlewares/helpers.js';
 
 const router = express.Router();
 
-// Middleware de validación
-const validarCampos = (req, res, next) => {
-    const errores = validationResult(req);
-    if (!errores.isEmpty()) {
-        return res.status(400).json({
-            success: false,
-            errors: errores.array()
-        });
-    }
-    next();
-};
-
 // Ruta para obtener todos los turnos con paginación
-router.get('/turnos', [
-    query('pagina').optional().isInt({ min: 1 }).withMessage('La página debe ser un número entero mayor a 0'),
-    query('limite').optional().isInt({ min: 1, max: 100 }).withMessage('El límite debe ser un número entre 1 y 100'),
+router.get('/', [
+    ...validacionesPaginacion,
     validarCampos
 ], async (req, res) => {
     try {
@@ -39,34 +38,83 @@ router.get('/turnos', [
         const [total] = await pool.query('SELECT COUNT(*) AS total FROM turnos');
 
         res.status(200).json({
-            exito: true,
-            datos: filas,
+            success: true,
+            message: 'Turnos obtenidos correctamente',
+            data: filas,
             total: total[0].total,
             pagina: parseInt(pagina),
             limite: parseInt(limite)
         });
     } catch (error) {
-        console.error('Error al obtener los turnos:', error);
-        res.status(500).json({
-            exito: false,
-            mensaje: 'Error interno al obtener los turnos',
-            error: error.message
+        return manejarErrorServidor(error, 'obtener turnos', res);
+    }
+});
+
+// Ruta para obtener turnos por usuario
+router.get('/usuario/:userId', [
+    ...validacionesTurnosPorUsuario,
+    validarCampos
+], async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        // Si es un administrador, devolver todas las reservas
+        if (userId.startsWith('admin-')) {
+            const [rows] = await pool.query(`SELECT
+                t.id_turno,
+                t.id_usuario,
+                t.id_cancha,
+                t.fecha_turno,
+                t.duracion,
+                t.precio,
+                t.estado,
+                t.fecha_creacion,
+                t.fecha_actualizacion,
+                u.nombre as nombre_usuario,
+                u.email as email_usuario
+            FROM turnos t
+            LEFT JOIN usuarios u ON t.id_usuario = u.id_usuario
+            ORDER BY t.fecha_turno DESC`);
+
+            return res.json({
+                success: true,
+                data: rows
+            });
+        }
+
+
+
+        const [rows] = await pool.query(`SELECT
+            id_turno,
+            id_usuario,
+            id_cancha,
+            fecha_turno,
+            duracion,
+            precio,
+            estado,
+            fecha_creacion,
+            fecha_actualizacion
+        FROM turnos
+        WHERE id_usuario = ?
+        ORDER BY fecha_turno DESC`, [userId]);
+
+        res.status(200).json({
+            success: true,
+            message: 'Turnos del usuario obtenidos correctamente',
+            data: rows
         });
+    } catch (error) {
+        return manejarErrorServidor(error, 'obtener turnos del usuario', res);
     }
 });
 
 // Ruta para obtener un turno por ID
-router.get('/turnos/:id', async (req, res) => {
+router.get('/:id', [
+    ...validacionesObtenerTurno,
+    validarCampos
+], async (req, res) => {
     try {
         const { id } = req.params;
-
-        // Validar que el ID sea un número
-        if (isNaN(id)) {
-            return res.status(400).json({
-                success: false,
-                message: 'ID de turno inválido'
-            });
-        }
 
         const [rows] = await pool.query(`SELECT
             id_turno,
@@ -88,40 +136,26 @@ router.get('/turnos/:id', async (req, res) => {
             });
         }
 
-        res.json(rows[0]);
-    } catch (error) {
-        console.error('Error al obtener el turno:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno al obtener el turno',
-            error: error.message
+        res.status(200).json({
+            success: true,
+            message: 'Turno obtenido correctamente',
+            data: rows[0]
         });
+    } catch (error) {
+        return manejarErrorServidor(error, 'obtener turno específico', res);
     }
 });
 
 
 // Ruta para verificar disponibilidad de una cancha
-router.get('/turnos/disponibilidad/:id_cancha/:fecha/:hora', async (req, res) => {
+router.get('/disponibilidad/:id_cancha/:fecha/:hora', [
+    ...validacionesDisponibilidadTurno,
+    validarCampos
+], async (req, res) => {
     try {
         const { id_cancha, fecha, hora } = req.params;
 
-        // Validar formato de fecha
-        const regexFecha = /^\d{4}-\d{2}-\d{2}$/;
-        if (!regexFecha.test(fecha)) {
-            return res.status(400).json({
-                exito: false,
-                mensaje: 'El formato de la fecha debe ser YYYY-MM-DD'
-            });
-        }
 
-        // Validar formato de hora (HH:MM)
-        const regexHora = /^\d{2}:\d{2}$/;
-        if (!regexHora.test(hora)) {
-            return res.status(400).json({
-                exito: false,
-                mensaje: 'El formato de la hora debe ser HH:MM'
-            });
-        }
 
         // Crear la fecha y hora completa
         const fechaHoraInicio = `${fecha} ${hora}:00`;
@@ -167,19 +201,146 @@ router.get('/turnos/disponibilidad/:id_cancha/:fecha/:hora', async (req, res) =>
     }
 });
 
-// Ruta para obtener turnos por fecha 
-router.get('/turnos/fecha/:fecha', async (req, res) => {
+// Función auxiliar para obtener horarios disponibles
+const obtenerHorariosDisponiblesHandler = async (req, res) => {
     try {
-        const { fecha } = req.params;
+        const { id_cancha, fecha, duracion } = req.params;
+        const duracionMinutos = parseInt(duracion) || 60; // Default: 60 minutos
 
-        // Validar que la fecha esté en el formato correcto (YYYY-MM-DD)
-        const regexFecha = /^\d{4}-\d{2}-\d{2}$/;
-        if (!regexFecha.test(fecha)) {
-            return res.status(400).json({
-                exito: false,
-                mensaje: 'El formato de la fecha debe ser YYYY-MM-DD'
+
+
+        // Verificar que la cancha existe y no está en mantenimiento
+        const [canchaData] = await pool.query(
+            'SELECT horarios_disponibles FROM canchas WHERE id = ? AND en_mantenimiento = false',
+            [id_cancha]
+        );
+
+        if (canchaData.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cancha no encontrada o en mantenimiento'
             });
         }
+
+        // Parsear horarios disponibles
+        let horariosCancha = [];
+        console.log(`[DEBUG] horarios_disponibles raw:`, canchaData[0].horarios_disponibles);
+        console.log(`[DEBUG] tipo de horarios_disponibles:`, typeof canchaData[0].horarios_disponibles);
+        
+        // Generar horarios dinámicos según la duración
+        const generarHorariosDinamicos = (duracionMinutos) => {
+            const horarios = [];
+            const horaInicio = 8; // 8:00 AM
+            const horaFin = 23; // 11:00 PM
+            const intervalos = duracionMinutos / 60; // Convertir a horas
+            
+            for (let hora = horaInicio; hora < horaFin; hora += intervalos) {
+                const horaInicioStr = `${Math.floor(hora).toString().padStart(2, '0')}:${((hora % 1) * 60).toString().padStart(2, '0')}`;
+                const horaFinStr = `${Math.floor(hora + intervalos).toString().padStart(2, '0')}:${(((hora + intervalos) % 1) * 60).toString().padStart(2, '0')}`;
+                
+                // Verificar que no se pase de la hora límite
+                if (hora + intervalos <= horaFin) {
+                    horarios.push(`${horaInicioStr}-${horaFinStr}`);
+                }
+            }
+            
+            return horarios;
+        };
+
+        horariosCancha = generarHorariosDinamicos(duracionMinutos);
+
+        // Obtener turnos reservados para esa fecha
+        const [turnosReservados] = await pool.query(
+            `SELECT fecha_turno, duracion 
+             FROM turnos 
+             WHERE id_cancha = ? 
+             AND DATE(fecha_turno) = ? 
+             AND estado = 'reservado'`,
+            [id_cancha, fecha]
+        );
+
+        // Filtrar horarios disponibles
+        const horariosDisponibles = [];
+        const horariosOcupados = [];
+
+        for (let horario of horariosCancha) {
+            // Extraer hora de inicio del horario (formato: "08:00-09:30" o "08:00")
+            let horaInicio = horario.split('-')[0];
+            if (!horaInicio) continue;
+
+            const fechaHoraCompleta = `${fecha} ${horaInicio}:00`;
+            const horaInicioDate = new Date(fechaHoraCompleta);
+            
+            let disponible = true;
+
+            // Verificar si este horario está ocupado
+            for (let turno of turnosReservados) {
+                const turnoInicio = new Date(turno.fecha_turno);
+                const turnoFin = new Date(turnoInicio.getTime() + (turno.duracion * 60000));
+
+                // Si hay solapamiento, el horario no está disponible
+                if (horaInicioDate >= turnoInicio && horaInicioDate < turnoFin) {
+                    disponible = false;
+                    break;
+                }
+            }
+
+            if (disponible) {
+                horariosDisponibles.push({
+                    horario: horario,
+                    hora: horaInicio,
+                    disponible: true
+                });
+            } else {
+                horariosOcupados.push({
+                    horario: horario,
+                    hora: horaInicio,
+                    disponible: false
+                });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Horarios obtenidos correctamente',
+            data: {
+                fecha: fecha,
+                id_cancha: id_cancha,
+                horarios_disponibles: horariosDisponibles,
+                horarios_ocupados: horariosOcupados,
+                total_disponibles: horariosDisponibles.length,
+                total_ocupados: horariosOcupados.length
+            }
+        });
+
+    } catch (error) {
+        console.error('Error al obtener horarios disponibles:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error interno al obtener horarios disponibles',
+            error: error.message
+        });
+    }
+};
+
+// Rutas para obtener horarios disponibles de una cancha en una fecha específica
+router.get('/horarios-disponibles/:id_cancha/:fecha/:duracion', [
+    ...validacionesHorariosDisponibles,
+    validarCampos
+], obtenerHorariosDisponiblesHandler);
+
+router.get('/horarios-disponibles/:id_cancha/:fecha', [
+    ...validacionesHorariosDisponibles,
+    validarCampos
+], obtenerHorariosDisponiblesHandler);
+
+// Ruta para obtener turnos por fecha 
+router.get('/fecha/:fecha', [
+    ...validacionesTurnosPorFecha,
+    validarCampos
+], async (req, res) => {
+    try {
+        const { fecha } = req.params;
 
         // Calcular el inicio y fin del día
         const inicioDia = `${fecha} 00:00:00`;
@@ -210,35 +371,33 @@ router.get('/turnos/fecha/:fecha', async (req, res) => {
 
 
 // Ruta para crear un nuevo turno 
-router.post('/turnos', [
+router.post('/', [
     protegerRuta,
-    body('id_usuario').isInt().withMessage('ID de usuario inválido'),
-    body('id_cancha').isInt().withMessage('ID de cancha inválido'),
-    body('fecha_turno').isISO8601().withMessage('Fecha de turno inválida'),
-    body('duracion').isInt({ min: 30, max: 180 }).withMessage('La duración debe estar entre 30 y 180 minutos'),
-    body('precio').isFloat({ min: 0 }).withMessage('El precio debe ser un número positivo'),
-    body('estado').isIn(['reservado', 'cancelado', 'completado']).withMessage('Estado inválido'),
-    body('email').isEmail().withMessage('Email inválido'),
-    body('nombre').isString().notEmpty().withMessage('El nombre es requerido'),
+    ...validacionesCrearTurno,
     validarCampos
 ], async (req, res) => {
     try {
-
+        console.log('Datos recibidos para crear turno:', req.body);
         const { id_usuario, id_cancha, fecha_turno, duracion, precio, estado, email, nombre } = req.body;
 
-        // Validar que se proporcionen todos los campos necesarios
-        if (!id_usuario || !id_cancha || !fecha_turno || !duracion || !precio || !estado) {
+        // Convertir fecha manteniendo la zona horaria local
+        const fechaMysql = convertirFechaMySQL(fecha_turno);
+        console.log('Fecha original:', fecha_turno);
+        console.log('Fecha convertida para MySQL:', fechaMysql);
+
+        // Validar que se proporcionen todos los campos necesarios (id_usuario es opcional)
+        if (!id_cancha || !fecha_turno || !duracion || !precio || !estado) {
             return res.status(400).json({
                 success: false,
-                message: 'Todos los campos son obligatorios'
+                message: 'Todos los campos son obligatorios (excepto id_usuario)'
             });
         }
 
-        // Validar que el ID de usuario y el ID de cancha sean números
-        if (isNaN(id_usuario) || isNaN(id_cancha)) {
+        // Validar que el ID de cancha sea número, id_usuario es opcional
+        if (isNaN(id_cancha) || (id_usuario && isNaN(id_usuario))) {
             return res.status(400).json({
                 success: false,
-                message: 'ID de usuario o ID de cancha inválido'
+                message: 'ID de cancha inválido o ID de usuario inválido'
             });
         }
 
@@ -279,7 +438,7 @@ router.post('/turnos', [
         // VALIDAR DISPONIBILIDAD DE LA CANCHA
         if (estado === 'reservado') {
             // Verificar si hay turnos en esa cancha y fecha
-            const fechaSolo = fecha_turno.split(' ')[0]; // Extraer solo la fecha (YYYY-MM-DD)
+            const fechaSolo = fechaMysql.split(' ')[0]; // Extraer solo la fecha (YYYY-MM-DD)
             
             const [turnosExistentes] = await pool.query(
                 `SELECT id_turno, fecha_turno, duracion 
@@ -290,24 +449,13 @@ router.post('/turnos', [
                 [id_cancha, fechaSolo]
             );
 
-            // Verificar conflictos de horario
-            const turnoInicio = new Date(fecha_turno);
-            const turnoFin = new Date(turnoInicio.getTime() + (duracion * 60000)); // duracion en minutos
-
-            for (let turnoExistente of turnosExistentes) {
-                const existenteInicio = new Date(turnoExistente.fecha_turno);
-                const existenteFin = new Date(existenteInicio.getTime() + (turnoExistente.duracion * 60000));
-
-                // Verificar si hay solapamiento de horarios
-                if ((turnoInicio >= existenteInicio && turnoInicio < existenteFin) ||
-                    (turnoFin > existenteInicio && turnoFin <= existenteFin) ||
-                    (turnoInicio <= existenteInicio && turnoFin >= existenteFin)) {
-                    
-                    return res.status(400).json({
-                        success: false,
-                        message: 'La cancha no está disponible en el horario solicitado'
-                    });
-                }
+            // Verificar conflictos de horario usando función auxiliar
+            const turnoInicio = new Date(fechaMysql);
+            if (!validarDisponibilidadHorario(turnosExistentes, turnoInicio, duracion)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'La cancha no está disponible en el horario solicitado'
+                });
             }
         }
 
@@ -317,24 +465,29 @@ router.post('/turnos', [
         const [result] = await pool.query(`INSERT INTO turnos
             (id_usuario, id_cancha, fecha_turno, duracion, precio, estado)
             VALUES (?, ?, ?, ?, ?, ?)`,
-            [id_usuario, id_cancha, fecha_turno, duracion, precio, estado]);
+            [id_usuario, id_cancha, fechaMysql, duracion, precio, estado]);
 
-        // Enviar correo de confirmación
-        await enviarCorreo({
-            destinatario: email,
-            asunto: 'Confirmación de Reserva',
-            contenidoHTML: `
-                <h1>Reserva Confirmada</h1>
-                <p>Hola ${nombre},</p>
-                <p>Tu reserva para la cancha ${id_cancha} ha sido confirmada.</p>
-                <ul>
-                  <li><strong>Fecha:</strong> ${fecha_turno.split(' ')[0]}</li>
-                  <li><strong>Horario:</strong> ${fecha_turno.split(' ')[1]}</li>
-                  <li><strong>Precio:</strong> $${precio}</li>
-                </ul>
-                <p>¡Gracias por elegirnos!</p>
-            `,
-        });
+        // Enviar correo de confirmación (sin bloquear la respuesta)
+        try {
+            await enviarCorreo({
+                destinatario: email,
+                asunto: 'Confirmación de Reserva',
+                contenidoHTML: `
+                    <h1>Reserva Confirmada</h1>
+                    <p>Hola ${nombre},</p>
+                    <p>Tu reserva para la cancha ${id_cancha} ha sido confirmada.</p>
+                    <ul>
+                      <li><strong>Fecha:</strong> ${fechaMysql.split(' ')[0]}</li>
+                      <li><strong>Horario:</strong> ${fechaMysql.split(' ')[1]}</li>
+                      <li><strong>Precio:</strong> $${precio}</li>
+                    </ul>
+                    <p>¡Gracias por elegirnos!</p>
+                `,
+            });
+        } catch (emailError) {
+            console.error('Error enviando correo de confirmación:', emailError);
+            // Continuar sin fallar la creación del turno
+        }
 
         res.status(201).json({
             success: true,
@@ -343,27 +496,16 @@ router.post('/turnos', [
         });
 
     } catch (error) {
-        console.error('Error al crear el turno:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno al crear el turno',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'crear turno', res);
     }
 });
 
 // Ruta para actualizar un turno por ID
 
-// Permitir actualizaciones parciales en PUT /turnos/:id
-router.put('/turnos/:id', [
+// Permitir actualizaciones parciales en PUT /:id
+router.put('/:id', [
     protegerRuta,
-    param('id').isInt().withMessage('ID de turno inválido'),
-    body('id_usuario').optional().isInt().withMessage('ID de usuario inválido'),
-    body('id_cancha').optional().isInt().withMessage('ID de cancha inválido'),
-    body('fecha_turno').optional().isISO8601().withMessage('Fecha de turno inválida'),
-    body('duracion').optional().isInt({ min: 30, max: 180 }).withMessage('La duración debe estar entre 30 y 180 minutos'),
-    body('precio').optional().isFloat({ min: 0 }).withMessage('El precio debe ser un número positivo'),
-    body('estado').optional().isIn(['reservado', 'cancelado', 'completado']).withMessage('Estado inválido'),
+    ...validacionesActualizarTurno,
     validarCampos
 ], async (req, res) => {
     try {
@@ -399,10 +541,12 @@ router.put('/turnos/:id', [
             valores.push(estado);
         }
 
-        if (campos.length === 0) {
+        // Validar que al menos un campo sea enviado para actualizar
+        const camposPermitidos = ['id_usuario', 'id_cancha', 'fecha_turno', 'duracion', 'precio', 'estado'];
+        if (!validarCamposActualizacion(req.body, camposPermitidos)) {
             return res.status(400).json({
-                exito: false,
-                mensaje: 'No se proporcionaron campos para actualizar'
+                success: false,
+                message: 'No se proporcionaron campos para actualizar'
             });
         }
 
@@ -423,32 +567,19 @@ router.put('/turnos/:id', [
             mensaje: 'Turno actualizado exitosamente'
         });
     } catch (error) {
-        console.error('Error al actualizar el turno:', error);
-        res.status(500).json({
-            exito: false,
-            mensaje: 'Error interno al actualizar el turno',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'actualizar turno', res);
     }
 });
 
 // Ruta para eliminar un turno por ID
-router.delete('/turnos/:id', [
+router.delete('/:id', [
     protegerRuta,
     verificarRol(['administrador']),
-    param('id').isInt().withMessage('ID de turno inválido'),
+    ...validacionesEliminarTurno,
     validarCampos
 ], async (req, res) => {
     try {
         const { id } = req.params;
-
-        // Validar que el id sea un número
-        if (isNaN(id)) {
-            return res.status(400).json({
-                success: false,
-                message: 'ID de turno inválido'
-            });
-        }
 
         const [result] = await pool.query(`DELETE FROM turnos WHERE id_turno = ?`, [id]);
 
@@ -465,12 +596,7 @@ router.delete('/turnos/:id', [
             message: 'Turno eliminado exitosamente'
         });
     } catch (error) {
-        console.error('Error al eliminar el turno:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno al eliminar el turno',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'eliminar turno', res);
     }
 });
 

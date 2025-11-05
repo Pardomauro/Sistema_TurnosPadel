@@ -81,10 +81,28 @@ const inicializarDataBase = async () => {
         `);
 
         // Asegurarse de que la columna rol exista en caso de que la tabla ya esté creada
-        await connection.execute(`
-            ALTER TABLE usuarios 
-            ADD COLUMN IF NOT EXISTS rol ENUM('usuario', 'administrador') NOT NULL DEFAULT 'usuario';
-        `);
+        try {
+            await connection.execute(`
+                ALTER TABLE usuarios 
+                ADD COLUMN rol ENUM('usuario', 'administrador') NOT NULL DEFAULT 'usuario';
+            `);
+        } catch (error) {
+            // Si la columna ya existe, ignorar el error
+        }
+
+        // Agregar columnas para código de verificación
+        try {
+            await connection.execute(`
+                ALTER TABLE usuarios 
+                ADD COLUMN codigo_verificacion VARCHAR(6) DEFAULT NULL,
+                ADD COLUMN codigo_expiracion TIMESTAMP DEFAULT NULL;
+            `);
+        } catch (error) {
+            // Si las columnas ya existen, ignorar el error
+            if (error.code !== 'ER_DUP_FIELDNAME') {
+                throw error;
+            }
+        }
 
         // Crear tabla turnos
         await connection.execute(`
@@ -105,6 +123,83 @@ const inicializarDataBase = async () => {
 
         
         console.log('Tablas "canchas", "usuarios" y "turnos" creadas o ya existentes');
+        
+        // Insertar datos de prueba si no existen canchas
+        const [canchas] = await connection.execute('SELECT COUNT(*) as count FROM canchas');
+        if (canchas[0].count === 0) {
+            console.log('Insertando canchas de prueba...');
+            
+            // Canchas de prueba con horarios disponibles
+            const canchasPrueba = [
+                {
+                    precio: 25000,
+                    en_mantenimiento: false,
+                    horarios: JSON.stringify([
+                        "08:00-09:30", "09:30-11:00", "11:00-12:30", 
+                        "12:30-14:00", "14:00-15:30", "15:30-17:00", 
+                        "17:00-18:30", "18:30-20:00", "20:00-21:30", "21:30-23:00"
+                    ])
+                },
+                {
+                    precio: 28000,
+                    en_mantenimiento: false,
+                    horarios: JSON.stringify([
+                        "08:00-09:30", "09:30-11:00", "11:00-12:30", 
+                        "12:30-14:00", "14:00-15:30", "15:30-17:00", 
+                        "17:00-18:30", "18:30-20:00", "20:00-21:30", "21:30-23:00"
+                    ])
+                },
+                {
+                    precio: 30000,
+                    en_mantenimiento: true,
+                    horarios: JSON.stringify([
+                        "08:00-09:30", "09:30-11:00", "11:00-12:30", 
+                        "12:30-14:00", "14:00-15:30", "15:30-17:00", 
+                        "17:00-18:30", "18:30-20:00", "20:00-21:30", "21:30-23:00"
+                    ])
+                },
+                {
+                    precio: 26000,
+                    en_mantenimiento: false,
+                    horarios: JSON.stringify([
+                        "08:00-09:30", "09:30-11:00", "11:00-12:30", 
+                        "12:30-14:00", "14:00-15:30", "15:30-17:00", 
+                        "17:00-18:30", "18:30-20:00", "20:00-21:30", "21:30-23:00"
+                    ])
+                }
+            ];
+            
+            for (const cancha of canchasPrueba) {
+                await connection.execute(
+                    'INSERT INTO canchas (precio, en_mantenimiento, horarios_disponibles) VALUES (?, ?, ?)',
+                    [cancha.precio, cancha.en_mantenimiento, cancha.horarios]
+                );
+            }
+            
+            console.log('Canchas de prueba insertadas correctamente');
+        }
+        
+        // Insertar usuario administrador por defecto si no existe
+        const adminEmail = process.env.ADMIN_EMAIL || 'sistematurnos2025@gmail.com';
+        const adminPassword = process.env.ADMIN_PASSWORD || 'Sistematurnos2025.@';
+        const adminName = process.env.ADMIN_NAME || 'AdministradorSistema';
+
+        const [usuarios] = await connection.execute('SELECT COUNT(*) as count FROM usuarios WHERE email = ?', [adminEmail]);
+        if (usuarios[0].count === 0) {
+            console.log('Creando usuario administrador por defecto...');
+            const bcrypt = await import('bcrypt');
+            const hashedPassword = await bcrypt.hash(adminPassword, 10);
+            
+            await connection.execute(
+                'INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)',
+                [adminName, adminEmail, hashedPassword, 'administrador']
+            );
+            
+            console.log(`Usuario administrador creado: ${adminEmail}`);
+        } else {
+            console.log(`Usuario administrador ya existe: ${adminEmail}`);
+        }
+        
         await connection.end();
     } catch (error) {
         console.error('Error al inicializar la base de datos:', error.message);

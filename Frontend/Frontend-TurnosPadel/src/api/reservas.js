@@ -26,7 +26,7 @@ export const obtenerReservas = async () => {
         }
 
         const data = await response.json();
-        return data;
+        return data.data || [];
     } catch (error) {
         console.error(error);
         throw error;
@@ -72,7 +72,9 @@ export const crearReserva = async (reserva) => {
         });
 
         if (!response.ok) {
-            throw new Error('Error al crear la reserva');
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Error response:', errorData);
+            throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -236,7 +238,7 @@ export const actualizarReservaParcial = async (id, camposActualizar) => {
     }
 };
 
-// Las funciones de validación se movieron a ../utils/validations.js
+// Las funciones de validación están disponibles en ../utils
 // Importar validarDatosReserva si necesitas validar datos antes de enviarlos
 
 export const obtenerReservaUsuario = async (userId) => {
@@ -251,7 +253,47 @@ export const obtenerReservaUsuario = async (userId) => {
         }
 
         const data = await response.json();
+        return data.data; // Devolver solo el array de turnos
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para obtener horarios disponibles de una cancha en una fecha específica
+export const obtenerHorariosDisponibles = async (id_cancha, fecha, duracion = 60) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos/horarios-disponibles/${id_cancha}/${fecha}/${duracion}`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al obtener los horarios disponibles');
+        }
+
+        const data = await response.json();
         return data;
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+};
+
+// Función para obtener reservas por usuario (alias para obtenerReservaUsuario)
+export const obtenerReservasPorUsuario = async (userId) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}/turnos/usuario/${userId}`, {
+            method: 'GET',
+            headers: getAuthHeaders()
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al obtener las reservas del usuario');
+        }
+
+        const data = await response.json();
+        return data.data || []; // Devolver solo el array de turnos
     } catch (error) {
         console.error(error);
         throw error;

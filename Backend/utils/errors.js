@@ -76,7 +76,7 @@ export const globalErrorHandler = (err, req, res, next) => {
     }
 
     // Error de programación u otros errores desconocidos: no enviar detalles
-    console.error('ERROR 💥', err);
+    console.error('ERROR ', err);
     return res.status(500).json({
         status: 'error',
         message: 'Algo salió mal!'

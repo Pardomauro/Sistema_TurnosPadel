@@ -15,9 +15,19 @@ export const loginUsuario = async (email, password) => {
 
         if (response.ok) {
             const data = await response.json();
-            return data;
+            
+            if (data.success) {
+                return {
+                    token: data.token,
+                    userId: data.userId,
+                    role: data.role
+                };
+            } else {
+                throw new Error(data.message || 'Error en el login');
+            }
         } else {
-            throw new Error('Error en la solicitud de login');
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Error en la solicitud de login');
         }
     } catch (error) {
         console.error('Error en la función loginUsuario:', error);
@@ -40,7 +50,9 @@ export const registrarUsuario = async (nombre, email, password) => {
             const data = await response.json();
             return data;
         } else {
-            throw new Error('Error en la solicitud de registro');
+            const errorData = await response.json().catch(() => ({ message: 'Error desconocido' }));
+            console.error('Error response from server:', response.status, errorData);
+            throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
         }
     } catch (error) {
         console.error('Error en la función registrarUsuario:', error);
@@ -51,7 +63,7 @@ export const registrarUsuario = async (nombre, email, password) => {
 // Función para recuperación de contraseña (enviar email con token)
 export const recuperarContrasena = async (email) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/recuperar-contrasena`, {
+        const response = await fetch(`${API_BASE_URL}/usuarios/recuperar-contrasena`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -74,7 +86,7 @@ export const recuperarContrasena = async (email) => {
 // Función para restablecer contraseña con token
 export const restablecerContrasena = async (token, nuevaContrasena) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/restablecer-contrasena`, {
+        const response = await fetch(`${API_BASE_URL}/usuarios/restablecer-contrasena`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -97,7 +109,7 @@ export const restablecerContrasena = async (token, nuevaContrasena) => {
 // Función para validar token de recuperación
 export const validarTokenRecuperacion = async (token) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/validar-token-recuperacion`, {
+        const response = await fetch(`${API_BASE_URL}/usuarios/validar-token-recuperacion`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

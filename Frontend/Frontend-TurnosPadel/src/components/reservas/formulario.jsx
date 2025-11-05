@@ -32,13 +32,15 @@ const FormularioReserva = () => {
 
 		const loadCanchas = async () => {
 			try {
-				const data = await obtenerCanchas();
-				setCanchas(data);
-				if (data && data.length && !form.id_cancha) {
-					setForm((f) => ({ ...f, id_cancha: data[0].id || data[0]._id }));
+				const canchasData = await obtenerCanchas();
+				const canchas = Array.isArray(canchasData) ? canchasData : [];
+				setCanchas(canchas);
+				if (canchas && canchas.length && !form.id_cancha) {
+					setForm((f) => ({ ...f, id_cancha: canchas[0].id_cancha || canchas[0].id || canchas[0]._id }));
 				}
 			} catch (err) {
 				console.error('Error cargando canchas', err);
+				setCanchas([]);
 			}
 		};
 

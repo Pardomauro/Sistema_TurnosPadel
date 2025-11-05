@@ -94,21 +94,7 @@ const Perfil = () => {
           />
         </div>
         
-        <div className="mb-6">
-          <label className="block text-gray-700 text-sm font-bold mb-2">
-            Teléfono
-          </label>
-          <input
-            type="tel"
-            name="telefono"
-            value={profile.telefono}
-            onChange={handleChange}
-            disabled={!isEditing}
-            className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500 ${
-              !isEditing ? 'bg-gray-100' : ''
-            }`}
-          />
-        </div>
+
 
         {!isEditing ? (
           <button
@@ -140,10 +126,6 @@ const Perfil = () => {
         )}
       </form>
 
-      <div className="mt-8">
-        <h3 className="text-xl font-bold mb-4">Mis Reservas</h3>
-        {/* Aquí podrías agregar un componente que muestre las reservas del usuario */}
-      </div>
     </div>
   );
 };

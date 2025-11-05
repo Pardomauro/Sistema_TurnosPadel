@@ -19,7 +19,10 @@ const limiter = rateLimit({
 app.use(helmet()); // Seguridad HTTP
 app.use(morgan('dev')); // Logging de solicitudes
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: [
+        process.env.FRONTEND_URL || 'http://localhost:5173',
+        'http://localhost:5174'
+    ],
     credentials: true
 }));
 app.use(express.json());
@@ -30,10 +33,12 @@ app.use(limiter); // Aplicar rate limiting a todas las rutas
 import rutasTurnos from './Rutas/Turnos.js';
 import rutasUsuario from './Rutas/Usuario.js';
 import rutasCanchas from './Rutas/Canchas.js';
+import rutasEstadisticas from './Rutas/Estadisticas.js';
 
 app.use('/api/turnos', rutasTurnos);
 app.use('/api/usuarios', rutasUsuario);
 app.use('/api/canchas', rutasCanchas);
+app.use('/api/estadisticas', rutasEstadisticas);
 
 // Importar manejadores de errores
 import { NotFoundError, globalErrorHandler } from './utils/errors.js';

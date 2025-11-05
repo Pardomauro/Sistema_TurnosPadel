@@ -1,17 +1,22 @@
 
 // Peticiones http relacionadas con los usuarios
-import { validarDatosUsuario } from '../utils';
 
 const API_BASE_URL = 'http://localhost:3000/api';
+
+// Helper para crear headers con Authorization
+const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+};
 
 // Función para obtener todos los usuarios (solo administrador)
 export const obtenerUsuarios = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/usuarios`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
@@ -19,11 +24,10 @@ export const obtenerUsuarios = async () => {
         }
 
         const data = await response.json();
-        return data;
+        return data.data || [];
     } catch (error) {
         console.error(error);
         throw error;
-
     }
 };
 
@@ -32,16 +36,14 @@ export const obtenerUsuarioPorId = async (id) => {
     try {
         const response = await fetch(`${API_BASE_URL}/usuarios/${id}`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
             throw new Error('Error al obtener el usuario');
         }
         const data = await response.json();
-        return data;
+        return data.data || null;
     } catch (error) {
         console.error(error);
         throw error;
@@ -54,9 +56,7 @@ export const crearUsuario = async (usuario) => {
     try {
         const response = await fetch(`${API_BASE_URL}/usuarios`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(usuario)
         });
 
@@ -64,7 +64,7 @@ export const crearUsuario = async (usuario) => {
             throw new Error('Error al crear el usuario');
         }
         const data = await response.json();
-        return data;
+        return data.data || null;
     } catch (error) {
         console.error(error);
         throw error;
@@ -77,9 +77,7 @@ export const actualizarUsuario = async (id, datosUsuario) => {
     try {
         const response = await fetch(`${API_BASE_URL}/usuarios/${id}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getAuthHeaders(),
             body: JSON.stringify(datosUsuario)
         });
 
@@ -87,7 +85,7 @@ export const actualizarUsuario = async (id, datosUsuario) => {
             throw new Error('Error al actualizar el usuario');
         }
         const data = await response.json();
-        return data;
+        return data.data || null;
     } catch (error) {
         console.error(error);
         throw error;
@@ -97,18 +95,16 @@ export const actualizarUsuario = async (id, datosUsuario) => {
 // Función para eliminar un usuario (solo administrador)
 export const eliminarUsuario = async (id) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/usuario/${id}`, {
+        const response = await fetch(`${API_BASE_URL}/usuarios/${id}`, {
             method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
             throw new Error('Error al eliminar el usuario');
         }
         const data = await response.json();
-        return data;
+        return data.data || null;
     } catch (error) {
         console.error(error);
         throw error;
@@ -121,22 +117,20 @@ export const obtenerPerfilUsuario = async (id) => {
     try {
         const response = await fetch(`${API_BASE_URL}/usuarios/${id}`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: getAuthHeaders()
         });
 
         if (!response.ok) {
             throw new Error('Error al obtener el perfil del usuario');
         }
         const data = await response.json();
-        return data;
+        return data.data || null;
     } catch (error) {
         console.error(error);
         throw error;
     }
 };
 
-// Las funciones de validación se movieron a ../utils/validations.js
-// Importar validarDatosUsuario si necesitas validar datos antes de enviarlos 
+// Las funciones de validación están disponibles en ../utils
+// Importar validarDatosUsuario si necesitas validar datos antes de enviarlos
 

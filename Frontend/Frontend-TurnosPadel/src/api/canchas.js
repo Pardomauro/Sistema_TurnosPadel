@@ -1,7 +1,5 @@
 
 // Peticiones http relacionadas con las canchas
-import { validarDatosCancha } from '../utils';
-
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
@@ -9,23 +7,9 @@ const API_BASE_URL = 'http://localhost:3000/api';
 const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
     return {
+        'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : ''
     };
-};
-
-// Función para manejar errores de la API
-const handleApiError = (error, customMessage) => {
-    console.error('Error en la petición:', error);
-    if (error.response) {
-        // El servidor respondió con un código de error
-        throw new Error(error.response.data?.message || customMessage);
-    } else if (error.request) {
-        // La petición fue hecha pero no se recibió respuesta
-        throw new Error('No se pudo conectar con el servidor. Verifica tu conexión.');
-    } else {
-        // Algo sucedió en la configuración de la petición
-        throw new Error(customMessage);
-    }
 };
 
 // Función para obtener todas las canchas
@@ -33,7 +17,9 @@ export const obtenerCanchas = async () => {
     try {
         const response = await fetch(`${API_BASE_URL}/canchas`, {
             method: 'GET',
-            headers: getAuthHeaders()
+            headers: {
+                ...getAuthHeaders()
+            }
         });
 
         if (!response.ok) {
@@ -41,7 +27,10 @@ export const obtenerCanchas = async () => {
         }
 
         const data = await response.json();
-        return data;
+        console.log('Respuesta API canchas:', data); // Para debug
+        
+        // Siempre retornar un array para consistencia
+        return data.data || data || [];
     } catch (error) {
         console.error('Error en la petición:', error);
         throw error;
@@ -53,8 +42,8 @@ export const obtenerCanchaPorId = async (id) => {
     try {
         const response = await fetch(`${API_BASE_URL}/canchas/${id}`, {
             method: 'GET',
-            headers: { 
-                ...getAuthHeaders()     
+            headers: {
+                ...getAuthHeaders()
             }
         });
 
@@ -63,12 +52,15 @@ export const obtenerCanchaPorId = async (id) => {
         }
 
         const data = await response.json();
-        return data;
+        return data.data || null;
     } catch (error) {
         console.error('Error en la petición:', error);
         throw error;
     }
 };
+
+// Alias para compatibilidad
+export const obtenerCancha = obtenerCanchaPorId;
 
 // Función para obtener solo canchas disponibles (no en mantenimiento)
 export const obtenerCanchasDisponibles = async () => {
@@ -85,7 +77,7 @@ export const obtenerCanchasDisponibles = async () => {
         }
 
         const data = await response.json();
-        return data;
+        return data.data || [];
     } catch (error) {
         console.error('Error en la petición:', error);
         throw error;

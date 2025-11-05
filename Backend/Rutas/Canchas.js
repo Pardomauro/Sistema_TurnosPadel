@@ -1,24 +1,22 @@
 
 import express from 'express';
-import { body, param, validationResult } from 'express-validator';
+import { validationResult } from 'express-validator';
 import { pool } from '../Config/db.js';
+import {
+    validarCampos,
+    manejarErrorServidor,
+    validacionesCrearCancha,
+    validacionesActualizarCancha,
+    validacionesObtenerCancha,
+    validacionesEliminarCancha,
+    validacionesDisponibilidad
+} from '../middlewares/index.js';
+import { parsearHorarios, validarCamposActualizacion } from '../middlewares/helpers.js';
 
 const router = express.Router();
 
-// Middleware de validación
-const validarCampos = (req, res, next) => {
-    const errores = validationResult(req);
-    if (!errores.isEmpty()) {
-        return res.status(400).json({
-            success: false,
-            errors: errores.array()
-        });
-    }
-    next();
-};
-
 // GET /api/canchas - Obtener todas las canchas
-router.get('/canchas', async (req, res) => {
+router.get('/', async (req, res) => {
     try {
         const [rows] = await pool.query(`
             SELECT 
@@ -32,37 +30,30 @@ router.get('/canchas', async (req, res) => {
             ORDER BY id ASC
         `);
 
+        // Procesar los horarios_disponibles para que sean arrays
+        const processedRows = rows.map(row => ({
+            ...row,
+            horarios_disponibles: parsearHorarios(row.horarios_disponibles)
+        }));
+
         res.status(200).json({
             success: true,
             message: 'Canchas obtenidas correctamente',
-            data: rows,
-            total: rows.length
+            data: processedRows,
+            total: processedRows.length
         });
     } catch (error) {
-        console.error('Error al obtener las canchas:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno del servidor al obtener las canchas',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'obtener canchas', res);
     }
 });
 
 // GET /api/canchas/:id - Obtener una cancha específica por ID
-router.get('/canchas/:id', [
-    param('id').isInt().withMessage('El ID debe ser un número válido'),
+router.get('/:id', [
+    ...validacionesObtenerCancha,
     validarCampos
 ], async (req, res) => {
     try {
         const { id } = req.params;
-
-        // Validar que el ID sea un número válido
-        if (!id || isNaN(id)) {
-            return res.status(400).json({
-                success: false,
-                message: 'ID de cancha inválido'
-            });
-        }
 
         const [rows] = await pool.query(`
             SELECT 
@@ -83,23 +74,24 @@ router.get('/canchas/:id', [
             });
         }
 
+        // Procesar horarios_disponibles
+        const processedCancha = {
+            ...rows[0],
+            horarios_disponibles: parsearHorarios(rows[0].horarios_disponibles)
+        };
+
         res.status(200).json({
             success: true,
             message: 'Cancha obtenida correctamente',
-            data: rows[0]
+            data: processedCancha
         });
     } catch (error) {
-        console.error('Error al obtener la cancha:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno del servidor al obtener la cancha',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'obtener cancha específica', res);
     }
 });
 
 // GET /api/canchas/disponibles - Obtener solo canchas disponibles (no en mantenimiento)
-router.get('/canchas/disponibles', async (req, res) => {
+router.get('/disponibles', async (req, res) => {
     try {
         const [rows] = await pool.query(`
             SELECT 
@@ -114,11 +106,17 @@ router.get('/canchas/disponibles', async (req, res) => {
             ORDER BY id ASC
         `);
 
+        // Procesar los horarios_disponibles para que sean arrays
+        const processedRows = rows.map(row => ({
+            ...row,
+            horarios_disponibles: parsearHorarios(row.horarios_disponibles)
+        }));
+
         res.status(200).json({
             success: true,
             message: 'Canchas disponibles obtenidas correctamente',
-            data: rows,
-            total: rows.length
+            data: processedRows,
+            total: processedRows.length
         });
     } catch (error) {
         console.error('Error al obtener las canchas disponibles:', error);
@@ -131,10 +129,9 @@ router.get('/canchas/disponibles', async (req, res) => {
 });
 
 // Ruta para verificar disponibilidad de canchas
-router.get('/turnos/disponibilidad', [
-  body('fecha').isISO8601().withMessage('La fecha debe estar en formato ISO8601 (YYYY-MM-DD)'),
-  body('horaInicio').isString().withMessage('La hora de inicio es requerida'),
-  body('horaFin').isString().withMessage('La hora de fin es requerida')
+router.post('/turnos/disponibilidad', [
+  ...validacionesDisponibilidad,
+  validarCampos
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -162,18 +159,8 @@ router.get('/turnos/disponibilidad', [
 
 
 // POST /api/canchas - Crear una nueva cancha
-router.post('/canchas', [
-    body('precio')
-        .isFloat({ min: 0.01 })
-        .withMessage('El precio debe ser un número mayor a 0'),
-    body('en_mantenimiento')
-        .isBoolean()
-        .withMessage('El estado de mantenimiento debe ser true o false'),
-    body('horarios_disponibles')
-        .isArray()
-        .withMessage('Los horarios disponibles deben ser un array')
-        .notEmpty()
-        .withMessage('Debe proporcionar al menos un horario disponible'),
+router.post('/', [
+    ...validacionesCrearCancha,
     validarCampos
 ], async (req, res) => {
     try {
@@ -223,7 +210,7 @@ router.post('/canchas', [
         // Parsear los horarios para la respuesta
         const canchaCreada = {
             ...newCancha[0],
-            horarios_disponibles: JSON.parse(newCancha[0].horarios_disponibles)
+            horarios_disponibles: parsearHorarios(newCancha[0].horarios_disponibles)
         };
 
         res.status(201).json({
@@ -232,46 +219,19 @@ router.post('/canchas', [
             data: canchaCreada
         });
     } catch (error) {
-        console.error('Error al crear la cancha:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno del servidor al crear la cancha',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'crear cancha', res);
     }
 });
 
 
 
 // PUT /api/canchas/:id - Actualizar una cancha existente
-router.put('/canchas/:id', [
-    param('id').isInt().withMessage('El ID debe ser un número válido'),
-    body('precio')
-        .optional()
-        .isFloat({ min: 0.01 })
-        .withMessage('El precio debe ser un número mayor a 0'),
-    body('en_mantenimiento')
-        .optional()
-        .isBoolean()
-        .withMessage('El estado de mantenimiento debe ser true o false'),
-    body('horarios_disponibles')
-        .optional()
-        .isArray()
-        .withMessage('Los horarios disponibles deben ser un array')
-        .notEmpty()
-        .withMessage('Debe proporcionar al menos un horario disponible'),
+router.put('/:id', [
+    ...validacionesActualizarCancha,
     validarCampos
 ], async (req, res) => {
     try {
         const { id } = req.params;
-
-        // Validar que el ID sea un número válido
-        if (!id || isNaN(id)) {
-            return res.status(400).json({
-                success: false,
-                message: 'ID de cancha inválido'
-            });
-        }
 
         // Verificar que la cancha exista
         const [canchas] = await pool.query('SELECT * FROM canchas WHERE id = ?', [id]);
@@ -286,7 +246,8 @@ router.put('/canchas/:id', [
         const canchaActual = canchas[0];
 
         // Validar que al menos un campo sea enviado para actualizar
-        if (precio === undefined && en_mantenimiento === undefined && horarios_disponibles === undefined) {
+        const camposPermitidos = ['precio', 'en_mantenimiento', 'horarios_disponibles'];
+        if (!validarCamposActualizacion(req.body, camposPermitidos)) {
             return res.status(400).json({
                 success: false,
                 message: 'Debe proporcionar al menos un campo para actualizar'
@@ -342,7 +303,7 @@ router.put('/canchas/:id', [
         // Parsear los horarios para la respuesta
         const canchaResponse = {
             ...canchaActualizada[0],
-            horarios_disponibles: JSON.parse(canchaActualizada[0].horarios_disponibles)
+            horarios_disponibles: parsearHorarios(canchaActualizada[0].horarios_disponibles)
         };
 
         res.status(200).json({
@@ -351,30 +312,17 @@ router.put('/canchas/:id', [
             data: canchaResponse
         });
     } catch (error) {
-        console.error('Error al actualizar la cancha:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno del servidor al actualizar la cancha',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'actualizar cancha', res);
     }
 });
 
 // DELETE /api/canchas/:id - Eliminar una cancha
-router.delete('/canchas/:id', [
-    param('id').isInt().withMessage('El ID debe ser un número válido'),
+router.delete('/:id', [
+    ...validacionesEliminarCancha,
     validarCampos
 ], async (req, res) => {
     try {
         const { id } = req.params;
-
-        // Verificar que el ID sea un número válido
-        if (!id || isNaN(id)) {
-            return res.status(400).json({
-                success: false,
-                message: 'ID de cancha inválido'
-            });
-        }
 
         // Verificar que la cancha exista y obtener sus datos antes de eliminar
         const [canchas] = await pool.query('SELECT * FROM canchas WHERE id = ?', [id]);
@@ -410,12 +358,7 @@ router.delete('/canchas/:id', [
             }
         });
     } catch (error) {
-        console.error('Error al eliminar la cancha:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno del servidor al eliminar la cancha',
-            error: error.message
-        });
+        return manejarErrorServidor(error, 'eliminar cancha', res);
     }
 });
 

@@ -8,10 +8,16 @@ if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
 
 // Configuración del transportador de correo
 const transporter = nodemailer.createTransport({
-    service: 'gmail', // Cambiar según el proveedor de correo
+    service: process.env.EMAIL_SERVICE || 'gmail',
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: process.env.EMAIL_PORT || 587,
+    secure: process.env.EMAIL_SECURE === 'true', // true para 465, false para otros puertos
     auth: {
         user: process.env.EMAIL_USER, // Correo electrónico del remitente
-        pass: process.env.EMAIL_PASS  // Contraseña o clave de aplicación
+        pass: process.env.EMAIL_PASS  // Contraseña de aplicación de Gmail
+    },
+    tls: {
+        rejectUnauthorized: false
     }
 });
 
