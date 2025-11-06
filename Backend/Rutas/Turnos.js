@@ -21,6 +21,7 @@ const router = express.Router();
 
 // Ruta para obtener todos los turnos con paginación
 router.get('/', [
+    protegerRuta,
     ...validacionesPaginacion,
     validarCampos
 ], async (req, res) => {
@@ -29,8 +30,21 @@ router.get('/', [
         const offset = (pagina - 1) * limite;
 
         const [filas] = await pool.query(
-            `SELECT id_turno, id_usuario, id_cancha, fecha_turno, duracion, precio, estado, fecha_creacion, fecha_actualizacion
-             FROM turnos
+            `SELECT 
+                t.id_turno, 
+                t.id_usuario, 
+                t.id_cancha, 
+                t.fecha_turno, 
+                t.duracion, 
+                t.precio, 
+                t.estado, 
+                t.fecha_creacion, 
+                t.fecha_actualizacion,
+                u.nombre as nombre_usuario,
+                u.email as email_usuario
+             FROM turnos t
+             LEFT JOIN usuarios u ON t.id_usuario = u.id_usuario
+             ORDER BY t.fecha_turno DESC
              LIMIT ? OFFSET ?`,
             [parseInt(limite), parseInt(offset)]
         );
@@ -155,7 +169,7 @@ router.get('/disponibilidad/:id_cancha/:fecha/:hora', [
     try {
         const { id_cancha, fecha, hora } = req.params;
 
-
+        console.log('🔍 Verificando disponibilidad:', { id_cancha, fecha, hora });
 
         // Crear la fecha y hora completa
         const fechaHoraInicio = `${fecha} ${hora}:00`;
@@ -174,16 +188,28 @@ router.get('/disponibilidad/:id_cancha/:fecha/:hora', [
         const horaInicio = new Date(`${fecha} ${hora}:00`);
         let disponible = true;
 
+        console.log('📅 Turnos existentes:', turnos.length);
+        console.log('🕐 Hora solicitada:', horaInicio);
+
         for (let turno of turnos) {
             const turnoInicio = new Date(turno.fecha_turno);
             const turnoFin = new Date(turnoInicio.getTime() + (turno.duracion * 60000)); // duracion en minutos
 
+            console.log('⏰ Comparando con turno:', { 
+                turnoInicio: turnoInicio, 
+                turnoFin: turnoFin, 
+                duracion: turno.duracion 
+            });
+
             // Si el horario solicitado está dentro del rango de otro turno
             if (horaInicio >= turnoInicio && horaInicio < turnoFin) {
+                console.log('❌ Conflicto encontrado');
                 disponible = false;
                 break;
             }
         }
+
+        console.log('✅ Resultado disponibilidad:', disponible);
 
         res.status(200).json({
             exito: true,
@@ -211,7 +237,7 @@ const obtenerHorariosDisponiblesHandler = async (req, res) => {
 
         // Verificar que la cancha existe y no está en mantenimiento
         const [canchaData] = await pool.query(
-            'SELECT horarios_disponibles FROM canchas WHERE id = ? AND en_mantenimiento = false',
+            'SELECT id FROM canchas WHERE id = ? AND en_mantenimiento = false',
             [id_cancha]
         );
 
@@ -222,12 +248,8 @@ const obtenerHorariosDisponiblesHandler = async (req, res) => {
             });
         }
 
-        // Parsear horarios disponibles
-        let horariosCancha = [];
-        console.log(`[DEBUG] horarios_disponibles raw:`, canchaData[0].horarios_disponibles);
-        console.log(`[DEBUG] tipo de horarios_disponibles:`, typeof canchaData[0].horarios_disponibles);
-        
         // Generar horarios dinámicos según la duración
+        let horariosCancha = [];
         const generarHorariosDinamicos = (duracionMinutos) => {
             const horarios = [];
             const horaInicio = 8; // 8:00 AM
@@ -435,9 +457,13 @@ router.post('/', [
             });
         }
 
-        // VALIDAR DISPONIBILIDAD DE LA CANCHA
-        if (estado === 'reservado') {
-            // Verificar si hay turnos en esa cancha y fecha
+        // VALIDAR DISPONIBILIDAD DE LA CANCHA (Solo para usuarios normales, no para admins)
+        // Los administradores pueden crear reservas sin validar disponibilidad
+        console.log('🔍 Usuario que crea la reserva:', req.usuario);
+        console.log('🔍 Es administrador?:', req.usuario?.rol === 'administrador');
+        
+        if (estado === 'reservado' && req.usuario?.rol !== 'administrador') {
+            // Solo validar disponibilidad para usuarios normales
             const fechaSolo = fechaMysql.split(' ')[0]; // Extraer solo la fecha (YYYY-MM-DD)
             
             const [turnosExistentes] = await pool.query(
@@ -457,36 +483,45 @@ router.post('/', [
                     message: 'La cancha no está disponible en el horario solicitado'
                 });
             }
+        } else if (req.usuario?.rol === 'administrador') {
+            console.log('✅ Administrador creando reserva - omitiendo validación de disponibilidad');
         }
 
 
         // Insertar el nuevo turno en la base de datos
+        // Si no hay id_usuario (reserva de admin), usar 1 como valor por defecto
+        const idUsuarioFinal = id_usuario || 1;
 
         const [result] = await pool.query(`INSERT INTO turnos
             (id_usuario, id_cancha, fecha_turno, duracion, precio, estado)
             VALUES (?, ?, ?, ?, ?, ?)`,
-            [id_usuario, id_cancha, fechaMysql, duracion, precio, estado]);
+            [idUsuarioFinal, id_cancha, fechaMysql, duracion, precio, estado]);
 
-        // Enviar correo de confirmación (sin bloquear la respuesta)
-        try {
-            await enviarCorreo({
-                destinatario: email,
-                asunto: 'Confirmación de Reserva',
-                contenidoHTML: `
-                    <h1>Reserva Confirmada</h1>
-                    <p>Hola ${nombre},</p>
-                    <p>Tu reserva para la cancha ${id_cancha} ha sido confirmada.</p>
-                    <ul>
-                      <li><strong>Fecha:</strong> ${fechaMysql.split(' ')[0]}</li>
-                      <li><strong>Horario:</strong> ${fechaMysql.split(' ')[1]}</li>
-                      <li><strong>Precio:</strong> $${precio}</li>
-                    </ul>
-                    <p>¡Gracias por elegirnos!</p>
-                `,
-            });
-        } catch (emailError) {
-            console.error('Error enviando correo de confirmación:', emailError);
-            // Continuar sin fallar la creación del turno
+        // Enviar correo de confirmación solo si se proporciona email (sin bloquear la respuesta)
+        if (email && email.includes('@')) {
+            try {
+                await enviarCorreo({
+                    destinatario: email,
+                    asunto: 'Confirmación de Reserva',
+                    contenidoHTML: `
+                        <h1>Reserva Confirmada</h1>
+                        <p>Hola ${nombre || 'Cliente'},</p>
+                        <p>Tu reserva para la cancha ${id_cancha} ha sido confirmada.</p>
+                        <ul>
+                          <li><strong>Fecha:</strong> ${fechaMysql.split(' ')[0]}</li>
+                          <li><strong>Horario:</strong> ${fechaMysql.split(' ')[1]}</li>
+                          <li><strong>Precio:</strong> $${precio}</li>
+                        </ul>
+                        <p>¡Gracias por elegirnos!</p>
+                    `,
+                });
+                console.log('✅ Correo de confirmación enviado a:', email);
+            } catch (emailError) {
+                console.error('❌ Error enviando correo de confirmación:', emailError);
+                // Continuar sin fallar la creación del turno
+            }
+        } else {
+            console.log('ℹ️ No se envió correo de confirmación (email no proporcionado o inválido)');
         }
 
         res.status(201).json({

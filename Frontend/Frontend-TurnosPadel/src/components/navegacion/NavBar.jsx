@@ -43,8 +43,8 @@ export default function NavBar() {
     return (
         <nav className="bg-blue-800 text-white shadow-lg">
             <div className="container mx-auto px-4">
-                <div className="flex justify-between items-center py-3 sm:py-4">
-                    {/* Logo */}
+                <div className="flex items-center py-3 sm:py-4 relative">
+                    {/* Logo - Fijo a la izquierda */}
                     <div className="flex items-center space-x-2">
                         <div className="text-xl sm:text-2xl font-bold">🎾</div>
                         <Link to="/" className="text-lg sm:text-xl font-bold hover:text-blue-200">
@@ -53,9 +53,9 @@ export default function NavBar() {
                         </Link>
                     </div>
 
-                    {/* Desktop Navigation */}
+                    {/* Desktop Navigation - Centrado */}
                     {isAuthenticated() && (
-                        <div className="hidden md:flex space-x-6">
+                        <div className="hidden md:flex space-x-6 absolute left-1/2 transform -translate-x-1/2">
                             {isAdmin() && (
                                 <Link
                                     to="/admin"
@@ -80,16 +80,12 @@ export default function NavBar() {
                             >
                                 Reservas
                             </Link>
-
-
-
-
                         </div>
                     )}
 
-                    {/* Desktop User Menu */}
+                    {/* Desktop User Menu - Fijo a la derecha */}
                     {isAuthenticated() && (
-                        <div className="hidden md:flex items-center space-x-4">
+                        <div className="hidden md:flex items-center space-x-4 ml-auto">
                             <div className="relative">
                                 <button
                                     onClick={toggleUserMenu}
@@ -126,11 +122,12 @@ export default function NavBar() {
                         </div>
                     )}
 
-                    {/* Mobile Menu Button */}
+                    {/* Mobile Menu Button - Fijo a la derecha */}
                     {isAuthenticated() && (
+                        
                         <button
                             onClick={toggleMobileMenu}
-                            className="md:hidden p-2 rounded-md hover:bg-blue-700 transition-colors"
+                            className="md:hidden p-2 rounded-md hover:bg-blue-700 transition-colors ml-auto"
                         >
                             <svg
                                 className="w-6 h-6"
@@ -150,8 +147,34 @@ export default function NavBar() {
 
                 {/* Mobile Menu */}
                 {isAuthenticated() && isMobileMenuOpen && (
-                    <div className="md:hidden border-t border-blue-500 py-3">
-                        <div className="flex flex-col space-y-3">
+                    <>
+                        {/* Overlay */}
+                        <div 
+                            className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+                            onClick={closeMobileMenu}
+                        ></div>
+                        
+                        {/* Menu Panel */}
+                        <div className="fixed top-0 right-0 h-full w-80 max-w-sm bg-blue-800 shadow-lg z-50 md:hidden transform transition-transform duration-300 ease-in-out">
+                            {/* Header del menú móvil */}
+                            <div className="flex items-center justify-between p-4 border-b border-blue-600">
+                                <div className="flex items-center space-x-2">
+                                    <div className="text-xl font-bold">🎾</div>
+                                    <span className="text-lg font-bold">Menú</span>
+                                </div>
+                                <button
+                                    onClick={closeMobileMenu}
+                                    className="p-2 rounded-md hover:bg-blue-700 transition-colors"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            {/* Contenido del menú */}
+                            <div className="p-4">
+                                <div className="flex flex-col space-y-3">
 
                             {isAdmin() && (
                                 <Link
@@ -186,7 +209,7 @@ export default function NavBar() {
 
 
                             {/* Mobile User Info */}
-                            <div className="px-3 py-2 border-t border-blue-500 mt-2">
+                            <div className="px-3 py-2 border-t border-blue-500 mt-4">
                                 <div className="flex items-center justify-between mb-3">
                                     <span className="text-sm">
                                         {isAdmin() ? 'Administrador' : 'Usuario'}
@@ -208,8 +231,10 @@ export default function NavBar() {
                                     </button>
                                 </div>
                             </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    </>
                 )}
             </div>
         </nav>

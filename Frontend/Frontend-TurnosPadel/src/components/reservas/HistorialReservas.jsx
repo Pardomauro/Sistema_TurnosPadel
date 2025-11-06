@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { obtenerReservasPorUsuario } from '../../api/reservas';
+import { obtenerReservasPorUsuario, obtenerReservas } from '../../api/reservas';
 import { useAuth } from '../../context/AuthContext';
 
 const HistorialReservas = () => {
-    const { user } = useAuth();
+    const { user, isAdmin } = useAuth();
     const [reservas, setReservas] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -16,7 +16,18 @@ const HistorialReservas = () => {
     const cargarReservas = async () => {
         try {
             setLoading(true);
-            const data = await obtenerReservasPorUsuario(user?.userId);
+            let data;
+            
+            if (isAdmin()) {
+                // Administradores ven todas las reservas
+                console.log('🔧 Cargando todas las reservas (administrador)');
+                data = await obtenerReservas();
+            } else {
+                // Usuarios normales ven solo sus reservas
+                console.log('👤 Cargando reservas del usuario:', user?.userId);
+                data = await obtenerReservasPorUsuario(user?.userId);
+            }
+            
             setReservas(data || []);
             setError('');
         } catch (err) {
@@ -52,6 +63,45 @@ const HistorialReservas = () => {
         }
     };
 
+    const renderDetallesReserva = (reserva, fecha, hora) => (
+        <div className={`grid gap-3 sm:gap-4 text-sm text-gray-600 ${isAdmin() ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-6' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'}`}>
+            {isAdmin() && (
+                <>
+                    <div className="min-w-0 text-center sm:text-left">
+                        <span className="font-medium">Usuario:</span>
+                        <br className="sm:hidden" />
+                        <span className="sm:ml-1 break-words">{reserva.nombre || reserva.nombre_usuario || 'Sin nombre'}</span>
+                    </div>
+                    <div className="min-w-0 col-span-1 sm:col-span-1 lg:col-span-2 xl:col-span-1 text-center sm:text-left">
+                        <span className="font-medium">Email:</span>
+                        <br className="sm:hidden" />
+                        <span className="sm:ml-1 text-xs break-all">{reserva.email || reserva.email_usuario || 'Sin email'}</span>
+                    </div>
+                </>
+            )}
+            <div className="text-center sm:text-left">
+                <span className="font-medium">Fecha:</span>
+                <br className="sm:hidden" />
+                <span className="sm:ml-1 capitalize">{fecha}</span>
+            </div>
+            <div className="text-center sm:text-left">
+                <span className="font-medium">Hora:</span>
+                <br className="sm:hidden" />
+                <span className="sm:ml-1">{hora}</span>
+            </div>
+            <div className="text-center sm:text-left">
+                <span className="font-medium">Duración:</span>
+                <br className="sm:hidden" />
+                <span className="sm:ml-1">{reserva.duracion} min</span>
+            </div>
+            <div className="text-center sm:text-left">
+                <span className="font-medium">Precio:</span>
+                <br className="sm:hidden" />
+                <span className="sm:ml-1">${reserva.precio?.toLocaleString()}</span>
+            </div>
+        </div>
+    );
+
     const filtrarReservas = (tipo) => {
         const ahora = new Date();
         return reservas.filter(reserva => {
@@ -79,13 +129,20 @@ const HistorialReservas = () => {
     return (
         <div className="max-w-6xl mx-auto mt-4 sm:mt-8 p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
-                <h2 className="text-xl sm:text-2xl font-bold">Mis Reservas</h2>
-                <Link 
-                    to="/canchas"
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm sm:text-base"
-                >
-                    Nueva Reserva
-                </Link>
+                <h2 className="text-xl sm:text-2xl font-bold">
+                    {isAdmin() ? 'Todas las Reservas' : 'Mis Reservas'}
+                </h2>
+                <div className="flex gap-2">
+                    {isAdmin() && (
+                        <Link 
+                            to="/admin/nueva-reserva"
+                            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm sm:text-base"
+                        >
+                            Nueva Reserva (Admin)
+                        </Link>
+                    )}
+
+                </div>
             </div>
 
             {error && (
@@ -132,28 +189,7 @@ const HistorialReservas = () => {
                                                         </span>
                                                     </div>
                                                     
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm text-gray-600">
-                                                        <div>
-                                                            <span className="font-medium">Fecha:</span>
-                                                            <br className="sm:hidden" />
-                                                            <span className="sm:ml-1 capitalize">{fecha}</span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium">Hora:</span>
-                                                            <br className="sm:hidden" />
-                                                            <span className="sm:ml-1">{hora}</span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium">Duración:</span>
-                                                            <br className="sm:hidden" />
-                                                            <span className="sm:ml-1">{reserva.duracion} min</span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium">Precio:</span>
-                                                            <br className="sm:hidden" />
-                                                            <span className="sm:ml-1">${reserva.precio?.toLocaleString()}</span>
-                                                        </div>
-                                                    </div>
+                                                    {renderDetallesReserva(reserva, fecha, hora)}
                                                 </div>
                                                 
                                                 <div className="flex flex-col sm:flex-row gap-2 min-w-fit">
@@ -189,28 +225,7 @@ const HistorialReservas = () => {
                                                         </span>
                                                     </div>
                                                     
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-sm text-gray-600">
-                                                        <div>
-                                                            <span className="font-medium">Fecha:</span>
-                                                            <br className="sm:hidden" />
-                                                            <span className="sm:ml-1 capitalize">{fecha}</span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium">Hora:</span>
-                                                            <br className="sm:hidden" />
-                                                            <span className="sm:ml-1">{hora}</span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium">Duración:</span>
-                                                            <br className="sm:hidden" />
-                                                            <span className="sm:ml-1">{reserva.duracion} min</span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-medium">Precio:</span>
-                                                            <br className="sm:hidden" />
-                                                            <span className="sm:ml-1">${reserva.precio?.toLocaleString()}</span>
-                                                        </div>
-                                                    </div>
+                                                    {renderDetallesReserva(reserva, fecha, hora)}
                                                 </div>
                                                 
                                                 <div className="flex flex-col sm:flex-row gap-2 min-w-fit">

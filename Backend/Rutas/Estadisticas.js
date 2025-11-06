@@ -51,6 +51,15 @@ router.get('/', [protegerRuta, verificarAdmin], async (req, res) => {
             AND estado IN ('reservado', 'completado')
         `);
 
+        // Obtener reservas del mes actual
+        const [reservasMes] = await pool.query(`
+            SELECT COUNT(*) as total 
+            FROM turnos 
+            WHERE YEAR(fecha_turno) = YEAR(CURDATE()) 
+            AND MONTH(fecha_turno) = MONTH(CURDATE())
+            AND estado IN ('reservado', 'completado')
+        `);
+
         res.status(200).json({
             success: true,
             message: 'Estadísticas obtenidas correctamente',
@@ -58,7 +67,8 @@ router.get('/', [protegerRuta, verificarAdmin], async (req, res) => {
                 canchasActivas: canchasActivas[0].total,
                 reservasHoy: reservasHoy[0].total,
                 usuariosRegistrados: usuariosTotal[0].total,
-                ingresosMes: parseFloat(ingresosMes[0].total) || 0
+                ingresosMes: parseFloat(ingresosMes[0].total) || 0,
+                reservasMes: reservasMes[0].total
             }
         });
 

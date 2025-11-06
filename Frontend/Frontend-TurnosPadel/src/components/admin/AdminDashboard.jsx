@@ -9,7 +9,8 @@ const AdminDashboard = () => {
         canchasActivas: 0,
         reservasHoy: 0,
         usuariosRegistrados: 0,
-        ingresosMes: 0
+        ingresosMes: 0,
+        reservasMes: 0
     });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -45,7 +46,7 @@ const AdminDashboard = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                 {/* Gestión de Canchas */}
-                <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+                <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex flex-col h-full">
                     <div className="flex items-center mb-3 sm:mb-4">
                         <div className="bg-green-100 p-2 sm:p-3 rounded-full">
                             <svg className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -54,8 +55,8 @@ const AdminDashboard = () => {
                         </div>
                         <h3 className="text-base sm:text-lg font-semibold text-gray-800 ml-3">Gestión de Canchas</h3>
                     </div>
-                    <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4">Administrar canchas, horarios y mantenimiento</p>
-                    <div className="space-y-2">
+                    <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 flex-grow">Administrar canchas, horarios y mantenimiento</p>
+                    <div className="space-y-2 mt-auto">
                         <Link to="/canchas" className="block w-full bg-blue-700 text-white py-2 sm:py-2 px-3 sm:px-4 rounded hover:bg-blue-600 transition-colors text-center text-sm sm:text-base">
                             Ver Canchas
                         </Link>
@@ -66,41 +67,45 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Gestión de Reservas */}
-                <div className="bg-white rounded-lg shadow-md p-6">
-                    <div className="flex items-center mb-4">
-                        <div className="bg-blue-100 p-3 rounded-full">
-                            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex flex-col h-full">
+                    <div className="flex items-center mb-3 sm:mb-4">
+                        <div className="bg-blue-100 p-2 sm:p-3 rounded-full">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-800 ml-3">Gestión de Reservas</h3>
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-800 ml-3">Gestión de Reservas</h3>
                     </div>
-                    <p className="text-gray-600 mb-4">Administrar reservas y turnos</p>
-                    <div className="space-y-2">
-                        <Link to="/reservas/historial" className="block w-full bg-blue-700 text-white py-2 px-4 rounded hover:bg-blue-600 transition-colors text-center">
+                    <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 flex-grow">Administrar reservas y turnos</p>
+                    <div className="space-y-2 mt-auto">
+                        <Link to="/reservas/historial" className="block w-full bg-blue-700 text-white py-2 sm:py-2 px-3 sm:px-4 rounded hover:bg-blue-600 transition-colors text-center text-sm sm:text-base">
                             Ver Historial
                         </Link>
-                        <Link to="/admin/nueva-reserva" className="block w-full bg-green-700 text-white py-2 px-4 rounded hover:bg-green-600 transition-colors text-center">
+                        <Link to="/admin/nueva-reserva" className="block w-full bg-green-700 text-white py-2 sm:py-2 px-3 sm:px-4 rounded hover:bg-green-600 transition-colors text-center text-sm sm:text-base">
                             Nueva Reserva
                         </Link>
                     </div>
                 </div>
 
                 {/* Gestión de Usuarios */}
-                <div className="bg-white rounded-lg shadow-md p-6">
-                    <div className="flex items-center mb-4">
-                        <div className="bg-purple-100 p-3 rounded-full">
-                            <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 flex flex-col h-full">
+                    <div className="flex items-center mb-3 sm:mb-4">
+                        <div className="bg-purple-100 p-2 sm:p-3 rounded-full">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
                             </svg>
                         </div>
-                        <h3 className="text-lg font-semibold text-gray-800 ml-3">Gestión de Usuarios</h3>
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-800 ml-3">Gestión de Usuarios</h3>
                     </div>
-                    <p className="text-gray-600 mb-4">Administrar usuarios del sistema</p>
-                    <div className="space-y-2">
-                        <Link to="/admin/usuarios" className="block w-full bg-purple-700 text-white py-2 px-4 rounded hover:bg-purple-600 transition-colors text-center">
+                    <p className="text-sm sm:text-base text-gray-600 mb-3 sm:mb-4 flex-grow">Administrar usuarios del sistema</p>
+                    <div className="space-y-2 mt-auto">
+                        <Link to="/admin/usuarios" className="block w-full bg-purple-700 text-white py-2 sm:py-2 px-3 sm:px-4 rounded hover:bg-purple-600 transition-colors text-center text-sm sm:text-base">
                             Gestionar Usuarios
                         </Link>
+                        {/* Botón placeholder para mantener altura uniforme */}
+                        <div className="block w-full py-2 sm:py-2 px-3 sm:px-4 rounded text-center text-sm sm:text-base opacity-0 pointer-events-none">
+                            Placeholder
+                        </div>
                     </div>
                 </div>
             </div>
@@ -214,8 +219,8 @@ const AdminDashboard = () => {
                         <div className="flex items-center justify-between">
                             <span className="text-xs sm:text-sm text-gray-600">Promedio por reserva</span>
                             <span className="text-xs sm:text-sm font-medium text-gray-800">
-                                ${estadisticas.reservasHoy > 0 ? 
-                                    Math.round(estadisticas.ingresosMes / 30).toLocaleString() : 
+                                ${estadisticas.reservasMes > 0 ? 
+                                    Math.round(estadisticas.ingresosMes / estadisticas.reservasMes).toLocaleString() : 
                                     '0'
                                 }
                             </span>

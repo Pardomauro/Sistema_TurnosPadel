@@ -100,15 +100,15 @@ const NuevaReserva = () => {
             return false;
         }
 
-        // Validar que la fecha no sea en el pasado
-        const fechaSeleccionada = new Date(formData.fecha);
-        const hoy = new Date();
-        hoy.setHours(0, 0, 0, 0);
-        
-        if (fechaSeleccionada < hoy) {
-            setError('No puedes crear reservas para fechas pasadas');
-            return false;
-        }
+        // Como administrador, permitimos crear reservas para cualquier fecha
+        // const fechaSeleccionada = new Date(formData.fecha);
+        // const hoy = new Date();
+        // hoy.setHours(0, 0, 0, 0);
+        // 
+        // if (fechaSeleccionada < hoy) {
+        //     setError('No puedes crear reservas para fechas pasadas');
+        //     return false;
+        // }
 
         if (!formData.hora) {
             setError('Debes seleccionar una hora');
@@ -140,18 +140,9 @@ const NuevaReserva = () => {
         setSuccess('');
 
         try {
-            // Verificar disponibilidad antes de crear la reserva
-            const disponibilidad = await verificarDisponibilidadCancha(
-                formData.id_cancha,
-                formData.fecha,
-                formData.hora
-            );
-
-            if (!disponibilidad.success || !disponibilidad.disponible) {
-                setError('La cancha no está disponible en el horario seleccionado');
-                return;
-            }
-
+            // Como administrador, podemos crear reservas sin verificar disponibilidad
+            // (o podríamos hacer una verificación opcional con warning en lugar de error)
+            
             // Preparar datos para la reserva
             // Mantener el formato simple para evitar problemas de zona horaria
             const fechaHora = `${formData.fecha} ${formData.hora}:00`;
@@ -168,6 +159,9 @@ const NuevaReserva = () => {
                 email: formData.email_usuario,
                 nombre: formData.nombre_usuario
             };
+
+            console.log('📤 Datos de reserva a enviar:', reservaData);
+            console.log('📤 FormData actual:', formData);
 
             const response = await crearReserva(reservaData);
             
@@ -341,7 +335,6 @@ const NuevaReserva = () => {
                                         name="fecha"
                                         value={formData.fecha}
                                         onChange={handleChange}
-                                        min={new Date().toISOString().split('T')[0]}
                                         className="w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
                                         required
                                     />

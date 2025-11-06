@@ -73,7 +73,16 @@ export const crearReserva = async (reserva) => {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            console.error('Error response:', errorData);
+            console.error('Error response completo:', errorData);
+            console.error('Status:', response.status);
+            console.error('Status Text:', response.statusText);
+            
+            // Si hay errores de validación específicos, mostrarlos
+            if (errorData.errors) {
+                console.error('Errores de validación:', errorData.errors);
+                throw new Error(`Errores de validación: ${errorData.errors.map(e => e.msg).join(', ')}`);
+            }
+            
             throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
         }
 

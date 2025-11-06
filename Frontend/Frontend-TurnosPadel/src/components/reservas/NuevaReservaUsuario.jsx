@@ -51,6 +51,7 @@ const NuevaReservaUsuario = () => {
     const cargarHorariosDisponibles = async () => {
         try {
             const response = await obtenerHorariosDisponibles(id, formData.fecha, formData.duracion);
+            console.log('Respuesta horarios disponibles:', response);
             if (response.success) {
                 setHorariosDisponibles(response.data.horarios_disponibles);
                 setHorariosOcupados(response.data.horarios_ocupados);
