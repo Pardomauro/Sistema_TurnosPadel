@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { obtenerCanchas, eliminarCancha } from '../../api/canchas';
 import { useAuth } from '../../context/AuthContext';
+import ConfirmDialog from '../accionesCriticas/ConfirmDialog';
 
 // Función helper para manejar horarios de forma segura
 const getHorariosCount = (horarios) => {
@@ -24,6 +25,8 @@ export default function ListaCanchas() {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
     const [eliminando, setEliminando] = useState(null); // ID de la cancha que se está eliminando
+    const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+    const [canchaAEliminar, setCanchaAEliminar] = useState(null);
     const { user, isAdmin } = useAuth();
 
     useEffect(() => {
@@ -47,24 +50,32 @@ export default function ListaCanchas() {
     };
 
     const handleEliminarCancha = async (id, numero) => {
-        const confirmacion = window.confirm(
-            `¿Estás seguro de que deseas eliminar la Cancha ${numero}?\n\n` +
-            `Esta acción no se puede deshacer y se eliminarán también todas las reservas asociadas.`
-        );
+        // Guardar datos de la cancha a eliminar y mostrar modal
+        setCanchaAEliminar({ id, numero });
+        setShowConfirmDelete(true);
+    };
 
-        if (confirmacion) {
-            try {
-                setEliminando(id); // Marcar como eliminando
-                await eliminarCancha(id);
-                await cargarCanchas(); // Recargar la lista
-                alert('Cancha eliminada exitosamente');
-            } catch (err) {
-                console.error('Error al eliminar cancha:', err);
-                alert('Error al eliminar la cancha. Por favor, intenta de nuevo.');
-            } finally {
-                setEliminando(null); // Quitar el estado de carga
-            }
+    const confirmarEliminacion = async () => {
+        if (!canchaAEliminar) return;
+
+        try {
+            setShowConfirmDelete(false);
+            setEliminando(canchaAEliminar.id); // Marcar como eliminando
+            await eliminarCancha(canchaAEliminar.id);
+            await cargarCanchas(); // Recargar la lista
+            alert('Cancha eliminada exitosamente');
+        } catch (err) {
+            console.error('Error al eliminar cancha:', err);
+            alert('Error al eliminar la cancha. Por favor, intenta de nuevo.');
+        } finally {
+            setEliminando(null); // Quitar el estado de carga
+            setCanchaAEliminar(null); // Limpiar datos
         }
+    };
+
+    const cancelarEliminacion = () => {
+        setShowConfirmDelete(false);
+        setCanchaAEliminar(null);
     };
 
     if (loading) {
@@ -145,7 +156,7 @@ export default function ListaCanchas() {
                                 // Solo mostrar botón de reservar si la cancha está disponible
                                 !cancha.en_mantenimiento && (
                                     <Link 
-                                        to={`/reservas/nueva/${cancha.id_cancha}`}
+                                        to={`/reservar/${cancha.id_cancha}`}
                                         className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors duration-200 text-center"
                                     >
                                         Reservar
@@ -172,6 +183,44 @@ export default function ListaCanchas() {
                     </div>
                 )}
             </div>
+
+            {/* Modal de Confirmación para Eliminar Cancha */}
+            {showConfirmDelete && canchaAEliminar && (
+                <ConfirmDialog 
+                    isOpen={showConfirmDelete}
+                    onConfirm={confirmarEliminacion}
+                    onCancel={cancelarEliminacion}
+                    title="⚠️ Confirmar Eliminación"
+                    message={
+                        <div className="space-y-4">
+                            <div className="border-l-4 border-red-500 pl-4">
+                                <h4 className="font-semibold text-red-800">
+                                    ¿Estás seguro de eliminar la Cancha {canchaAEliminar.numero}?
+                                </h4>
+                                <div className="mt-3 space-y-2 text-sm text-gray-700">
+                                    <div className="bg-red-50 p-3 rounded-lg">
+                                        <p className="font-medium text-red-800 mb-2">⚠️ Esta acción es irreversible</p>
+                                        <ul className="space-y-1 text-red-700">
+                                            <li>• Se eliminará permanentemente la cancha</li>
+                                            <li>• Se cancelarán todas las reservas futuras</li>
+                                            <li>• Se perderá el historial de reservas</li>
+                                            <li>• Los usuarios serán notificados automáticamente</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="text-center pt-2">
+                                <p className="text-sm font-medium text-gray-800">
+                                    Selecciona "ELIMINAR" y confirma para proceder
+                                </p>
+                            </div>
+                        </div>
+                    }
+                    confirmText="Sí, eliminar Cancha"
+                    cancelText="Cancelar"
+                    type="danger"
+                />
+            )}
         </div>
     );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { obtenerUsuarios, crearUsuario, eliminarUsuario } from '../../api/usuarios';
+import ConfirmDialog from '../accionesCriticas/ConfirmDialog';
 
 const GestionUsuarios = () => {
     const [usuarios, setUsuarios] = useState([]);
@@ -7,6 +8,9 @@ const GestionUsuarios = () => {
     const [error, setError] = useState('');
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+    const [usuarioAEliminar, setUsuarioAEliminar] = useState(null);
+    const [eliminando, setEliminando] = useState(null);
     
     const [formData, setFormData] = useState({
         nombre: '',
@@ -73,21 +77,42 @@ const GestionUsuarios = () => {
         }
     };
 
-    const handleEliminar = async (userId, nombreUsuario) => {
-        const confirm = window.confirm(
-            `¿Estás seguro que querés eliminar al usuario "${nombreUsuario}"?`
-        );
-        
-        if (!confirm) return;
+    const handleEliminar = async (userId, nombreUsuario, emailUsuario) => {
+        // Preparar datos para el modal de confirmación
+        setUsuarioAEliminar({ 
+            id_usuario: userId, 
+            nombre: nombreUsuario,
+            email: emailUsuario 
+        });
+        setShowConfirmDelete(true);
+    };
+
+    const confirmarEliminacion = async () => {
+        if (!usuarioAEliminar) return;
 
         try {
-            await eliminarUsuario(userId);
+            setShowConfirmDelete(false);
+            setEliminando(usuarioAEliminar.id_usuario);
+            
+            // Eliminar del sistema
+            await eliminarUsuario(usuarioAEliminar.id_usuario);
+            
+            // Recargar la lista de usuarios
             await cargarUsuarios();
-            alert('Usuario eliminado exitosamente');
+            
+            alert('Usuario eliminado exitosamente del sistema.');
         } catch (err) {
             console.error('Error eliminando usuario:', err);
-            alert(err.message || 'Error al eliminar el usuario');
+            alert(err.message || 'Error al eliminar el usuario. Por favor, intenta de nuevo.');
+        } finally {
+            setEliminando(null);
+            setUsuarioAEliminar(null);
         }
+    };
+
+    const cancelarEliminacion = () => {
+        setShowConfirmDelete(false);
+        setUsuarioAEliminar(null);
     };
 
     if (loading) {
@@ -228,10 +253,15 @@ const GestionUsuarios = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                                             <button
-                                                onClick={() => handleEliminar(usuario.id_usuario, usuario.nombre)}
-                                                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
+                                                onClick={() => handleEliminar(usuario.id_usuario, usuario.nombre, usuario.email)}
+                                                disabled={eliminando === usuario.id_usuario}
+                                                className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                                    eliminando === usuario.id_usuario 
+                                                        ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+                                                        : 'bg-red-600 hover:bg-red-700 text-white'
+                                                }`}
                                             >
-                                                Eliminar
+                                                {eliminando === usuario.id_usuario ? '⏳ Eliminando...' : 'Eliminar Usuario'}
                                             </button>
                                         </td>
                                     </tr>
@@ -241,6 +271,70 @@ const GestionUsuarios = () => {
                     </div>
                 )}
             </div>
+
+            {/* Modal de Confirmación para Eliminar Usuario */}
+            {showConfirmDelete && usuarioAEliminar && (
+                <ConfirmDialog 
+                    isOpen={showConfirmDelete}
+                    onConfirm={confirmarEliminacion}
+                    onCancel={cancelarEliminacion}
+                    title="⚠️ Eliminar Usuario del Sistema"
+                    message={
+                        <div className="space-y-4">
+                            <div className="border-l-4 border-red-500 pl-4">
+                                <h4 className="font-semibold text-red-800 mb-3">
+                                    ¿Estás seguro de eliminar este usuario del sistema?
+                                </h4>
+                                
+                                {/* Información del usuario */}
+                                <div className="bg-gray-50 p-3 rounded-lg mb-3">
+                                    <h5 className="font-medium text-gray-800 mb-2">Detalles del Usuario:</h5>
+                                    <div className="space-y-1 text-sm text-gray-700">
+                                        <p><span className="font-medium">ID:</span> {usuarioAEliminar.id_usuario}</p>
+                                        <p><span className="font-medium">Nombre:</span> {usuarioAEliminar.nombre}</p>
+                                        <p><span className="font-medium">Email:</span> {usuarioAEliminar.email}</p>
+                                    </div>
+                                </div>
+
+                                {/* Advertencias críticas */}
+                                <div className="bg-red-50 p-3 rounded-lg">
+                                    <p className="font-medium text-red-800 mb-2">⚠️ Esta acción es IRREVERSIBLE</p>
+                                    <ul className="space-y-1 text-sm text-red-700">
+                                        <li>• El usuario será eliminado permanentemente del sistema</li>
+                                        <li>• Se perderán todos los datos asociados al usuario</li>
+                                        <li>• Se cancelarán todas sus reservas futuras automáticamente</li>
+                                        <li>• Se conservará el historial de reservas pasadas por auditoría</li>
+                                        <li>• El usuario no podrá volver a acceder al sistema</li>
+                                        <li>• Se enviará una notificación automática por email</li>
+                                        <li>• No se puede deshacer esta operación</li>
+                                    </ul>
+                                </div>
+                                
+                                {/* Nota importante */}
+                                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mt-3">
+                                    <div className="flex">
+                                        <div className="ml-3">
+                                            <p className="text-sm text-yellow-800">
+                                                <span className="font-medium">Nota:</span> Si solo necesitas desactivar temporalmente al usuario, 
+                                                considera usar la función de "suspensión" en lugar de eliminación permanente.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className="text-center pt-2">
+                                <p className="text-sm font-medium text-gray-800">
+                                    Solo los administradores pueden realizar esta acción crítica
+                                </p>
+                            </div>
+                        </div>
+                    }
+                    confirmText="Sí, Eliminar Usuario Definitivamente"
+                    cancelText="Cancelar"
+                    type="danger"
+                />
+            )}
         </div>
     );
 };

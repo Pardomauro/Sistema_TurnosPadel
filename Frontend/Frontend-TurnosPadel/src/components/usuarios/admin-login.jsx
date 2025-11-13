@@ -86,7 +86,7 @@ const AdminLogin = () => {
             value={formData.email}
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-purple-500"
-            placeholder="sistematurnos2025@gmail.com"
+            placeholder=""
             required
           />
         </div>
@@ -101,7 +101,7 @@ const AdminLogin = () => {
             value={formData.password}
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-purple-500"
-            placeholder="Contraseña de administrador"
+            placeholder=""
             required
           />
         </div>
@@ -128,17 +128,7 @@ const AdminLogin = () => {
         </p>
       </div>
 
-      {/* Información de credenciales (solo para desarrollo) */}
-      <div className="mt-6 p-3 bg-yellow-100 border border-yellow-400 rounded text-sm">
-        <strong className="text-yellow-800">Credenciales de Administrador:</strong>
-        <div className="text-yellow-700 mt-1">
-          <div>Email: sistematurnos2025@gmail.com</div>
-          <div>Password: Sistematurnos2025.@</div>
-        </div>
-        <p className="text-xs text-yellow-600 mt-2">
-          ⚠️ Ahora usa el sistema real de base de datos
-        </p>
-      </div>
+
     </div>
   );
 };

@@ -5,17 +5,35 @@ import 'dotenv/config';
 /**
  * Script para crear o actualizar el usuario administrador
  * 
+ * IMPORTANTE: Configurar variables de entorno obligatorias en .env:
+ * - ADMIN_EMAIL=tu_email@gmail.com
+ * - ADMIN_PASSWORD=tu_contraseña_segura
+ * - ADMIN_NAME=Nombre Administrador (opcional)
+ * 
  * Uso:
  * - Crear/verificar admin: node scripts/crearAdmin.js
  * - Actualizar password: node scripts/crearAdmin.js --actualizar
  * 
- * Configuración: Lee credenciales desde .env (ADMIN_EMAIL, ADMIN_PASSWORD, ADMIN_NAME)
+ * SEGURIDAD: NUNCA incluir credenciales directamente en el código
  */
 async function crearUsuarioAdmin() {
     try {
-        const adminEmail = process.env.ADMIN_EMAIL || 'sistematurnos2025@gmail.com';
-        const adminPassword = process.env.ADMIN_PASSWORD || 'Sistematurnos2025.@';
+        const adminEmail = process.env.ADMIN_EMAIL;
+        const adminPassword = process.env.ADMIN_PASSWORD;
         const adminName = process.env.ADMIN_NAME || 'Administrador Sistema';
+
+        // Validar que las credenciales estén configuradas
+        if (!adminEmail || !adminPassword) {
+            console.error('❌ ERROR: Variables de entorno obligatorias no configuradas');
+            console.error('');
+            console.error('Debes configurar las siguientes variables en tu archivo .env:');
+            console.error('   ADMIN_EMAIL=tu_email_admin@gmail.com');
+            console.error('   ADMIN_PASSWORD=tu_contraseña_segura');
+            console.error('   ADMIN_NAME=Nombre del Administrador (opcional)');
+            console.error('');
+            console.error('NUNCA incluyas credenciales directamente en el código por seguridad.');
+            process.exit(1);
+        }
 
         console.log('Verificando si el usuario administrador existe...');
         console.log(`Email: ${adminEmail}`);
@@ -65,9 +83,10 @@ async function crearUsuarioAdmin() {
             console.log(`   Rol: administrador`);
         }
 
-        console.log('\n Credenciales para usar en Postman o frontend:');
-        console.log(`   Email: ${adminEmail}`);
-        console.log(`   Password: ${adminPassword}`);
+        console.log('\n🔐 Credenciales configuradas correctamente en variables de entorno');
+        console.log(`📧 Email: ${adminEmail}`);
+        console.log(`👤 Nombre: ${adminName}`);
+        console.log('🔒 Password: [PROTEGIDA - No se muestra por seguridad]');
 
         await pool.end();
         console.log('\nProceso completado');

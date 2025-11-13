@@ -3,6 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { obtenerCanchaPorId } from '../../api/canchas';
 import { obtenerHorariosDisponibles, crearReserva } from '../../api/reservas';
 import { useAuth } from '../../context/AuthContext';
+import ConfirmDialog from '../accionesCriticas/ConfirmDialog';
+
 
 const NuevaReservaUsuario = () => {
     const { id } = useParams();
@@ -15,6 +17,10 @@ const NuevaReservaUsuario = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [reservando, setReservando] = useState(false);
+
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [confirmData, setConfirmData] = useState(null);
+
 
     const [formData, setFormData] = useState({
         fecha: '',
@@ -74,14 +80,39 @@ const NuevaReservaUsuario = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+
+        // Validaciones
+        if (!formData.fecha || !formData.hora || !formData.nombre || !formData.email) {
+            setError('Todos los campos son obligatorios');
+            return;
+        }
+
+        // Preparar datos para la confirmación
+        const fechaFormateada = new Date(formData.fecha).toLocaleDateString('es-ES', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+
+        setConfirmData({
+            cancha: cancha?.id_cancha,
+            fecha: fechaFormateada,
+            hora: formData.hora,
+            duracion: formData.duracion,
+            precio: cancha?.precio,
+            nombre: formData.nombre,
+            email: formData.email
+        });
+
+        setShowConfirm(true);
+    };
+
+    const confirmarReserva = async () => {
+        setShowConfirm(false);
         setReservando(true);
 
         try {
-            // Validaciones
-            if (!formData.fecha || !formData.hora || !formData.nombre || !formData.email) {
-                throw new Error('Todos los campos son obligatorios');
-            }
-
             // Construir fecha y hora completa
             const fechaHoraCompleta = `${formData.fecha} ${formData.hora}:00`;
 
@@ -110,6 +141,11 @@ const NuevaReservaUsuario = () => {
         } finally {
             setReservando(false);
         }
+    };
+
+    const cancelarConfirmacion = () => {
+        setShowConfirm(false);
+        setConfirmData(null);
     };
 
     const obtenerFechaMinima = () => {
@@ -316,24 +352,7 @@ const NuevaReservaUsuario = () => {
                     </div>
                 )}
 
-                {/* Resumen */}
-                {formData.fecha && formData.hora && (
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                        <h4 className="font-medium mb-2">Resumen de la reserva:</h4>
-                        <div className="space-y-1 text-sm">
-                            <p><span className="font-medium">Cancha:</span> {cancha?.id_cancha}</p>
-                            <p><span className="font-medium">Fecha:</span> {new Date(formData.fecha).toLocaleDateString('es-ES', { 
-                                weekday: 'long', 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                            })}</p>
-                            <p><span className="font-medium">Hora:</span> {formData.hora}</p>
-                            <p><span className="font-medium">Duración:</span> {formData.duracion} minutos</p>
-                            <p><span className="font-medium">Precio:</span> ${cancha?.precio?.toLocaleString()}</p>
-                        </div>
-                    </div>
-                )}
+
 
                 {/* Botón de envío */}
                 <button
@@ -358,6 +377,41 @@ const NuevaReservaUsuario = () => {
                     )}
                 </button>
             </form>
+
+            {/* Modal de Confirmación */}
+            {showConfirm && confirmData && (
+                <ConfirmDialog 
+                    isOpen={showConfirm}
+                    onConfirm={confirmarReserva}
+                    onCancel={cancelarConfirmacion}
+                    title="Confirmar Reserva"
+                    message={
+                        <div className="space-y-3">
+                            <div className="border-l-4 border-blue-500 pl-4">
+                                <h4 className="font-semibold text-gray-800">Detalles de la Reserva</h4>
+                                <div className="mt-2 space-y-2 text-sm">
+                                    <p><span className="font-medium">Cancha:</span> {confirmData.cancha}</p>
+                                    <p><span className="font-medium">Fecha:</span> {confirmData.fecha}</p>
+                                    <p><span className="font-medium">Hora:</span> {confirmData.hora}</p>
+                                    <p><span className="font-medium">Duración:</span> {confirmData.duracion} minutos</p>
+                                    <p><span className="font-medium">Precio:</span> ${confirmData.precio}</p>
+                                    {confirmData.nombre && (
+                                        <p><span className="font-medium">Nombre:</span> {confirmData.nombre}</p>
+                                    )}
+                                    {confirmData.email && (
+                                        <p><span className="font-medium">Email:</span> {confirmData.email}</p>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="text-center pt-2">
+                                <p className="text-sm text-gray-600">
+                                    ¿Confirmas que deseas hacer esta reserva?
+                                </p>
+                            </div>
+                        </div>
+                    }
+                />
+            )}
         </div>
     );
 };

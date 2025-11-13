@@ -9,7 +9,6 @@ import AdminLogin from '../usuarios/admin-login';
 import Unauthorized from '../auth/Unauthorized';
 import AdminDashboard from '../admin/AdminDashboard';
 import HistorialReservas from '../reservas/HistorialReservas.jsx';
-import ReservarCancha from '../reservas/ReservarCancha.jsx';
 import NuevaReservaUsuario from '../reservas/NuevaReservaUsuario.jsx';
 import ListaCanchas from '../canchas/lista.jsx';
 import DetalleCancha from '../canchas/detalle.jsx';
@@ -91,14 +90,9 @@ export default function RutasApp() {
                     <HistorialReservas />
                 </ProtectedRoute>
             } />
-            <Route path="/reservas/nueva/:id" element={
-                <ProtectedRoute>
-                    <NuevaReservaUsuario />
-                </ProtectedRoute>
-            } />
             <Route path="/reservar/:id" element={
                 <ProtectedRoute>
-                    <ReservarCancha />
+                    <NuevaReservaUsuario />
                 </ProtectedRoute>
             } />
 

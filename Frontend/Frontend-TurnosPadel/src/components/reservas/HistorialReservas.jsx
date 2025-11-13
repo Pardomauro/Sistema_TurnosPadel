@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { obtenerReservasPorUsuario, obtenerReservas } from '../../api/reservas';
+import { obtenerReservasPorUsuario, obtenerReservas, eliminarReserva } from '../../api/reservas';
 import { useAuth } from '../../context/AuthContext';
+import ConfirmDialog from '../accionesCriticas/ConfirmDialog';
 
 const HistorialReservas = () => {
     const { user, isAdmin } = useAuth();
     const [reservas, setReservas] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+    const [reservaAEliminar, setReservaAEliminar] = useState(null);
+    const [eliminando, setEliminando] = useState(null);
 
     useEffect(() => {
         cargarReservas();
@@ -36,6 +40,40 @@ const HistorialReservas = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleEliminarReserva = (reserva) => {
+        // Preparar datos para el modal de confirmación
+        setReservaAEliminar(reserva);
+        setShowConfirmDelete(true);
+    };
+
+    const confirmarEliminacion = async () => {
+        if (!reservaAEliminar) return;
+
+        try {
+            setShowConfirmDelete(false);
+            setEliminando(reservaAEliminar.id_turno);
+            
+            // Eliminar de la base de datos
+            await eliminarReserva(reservaAEliminar.id_turno);
+            
+            // Actualizar la lista eliminando la reserva
+            setReservas(prev => prev.filter(r => r.id_turno !== reservaAEliminar.id_turno));
+            
+            alert('Reserva eliminada exitosamente del sistema.');
+        } catch (err) {
+            console.error('Error al eliminar reserva:', err);
+            alert('Error al eliminar la reserva. Por favor, intenta de nuevo.');
+        } finally {
+            setEliminando(null);
+            setReservaAEliminar(null);
+        }
+    };
+
+    const cancelarEliminacion = () => {
+        setShowConfirmDelete(false);
+        setReservaAEliminar(null);
     };
 
     const formatearFechaHora = (fechaHora) => {
@@ -193,6 +231,19 @@ const HistorialReservas = () => {
                                                 </div>
                                                 
                                                 <div className="flex flex-col sm:flex-row gap-2 min-w-fit">
+                                                    {isAdmin() && (
+                                                        <button
+                                                            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                                                eliminando === reserva.id_turno 
+                                                                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+                                                                    : 'bg-red-700 hover:bg-red-800 text-white'
+                                                            }`}
+                                                            onClick={() => handleEliminarReserva(reserva)}
+                                                            disabled={eliminando === reserva.id_turno}
+                                                        >
+                                                            {eliminando === reserva.id_turno ? '⏳ Eliminando...' : 'Eliminar'}
+                                                        </button>
+                                                    )}
                                                     <span className="text-xs text-gray-500 sm:text-right">
                                                         Reserva #{reserva.id_turno}
                                                     </span>
@@ -229,6 +280,19 @@ const HistorialReservas = () => {
                                                 </div>
                                                 
                                                 <div className="flex flex-col sm:flex-row gap-2 min-w-fit">
+                                                    {isAdmin() && (
+                                                        <button
+                                                            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                                                eliminando === reserva.id_turno 
+                                                                    ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+                                                                    : 'bg-red-700 hover:bg-red-800 text-white'
+                                                            }`}
+                                                            onClick={() => handleEliminarReserva(reserva)}
+                                                            disabled={eliminando === reserva.id_turno}
+                                                        >
+                                                            {eliminando === reserva.id_turno ? '⏳ Eliminando...' : 'Eliminar'}
+                                                        </button>
+                                                    )}
                                                     <span className="text-xs text-gray-400 sm:text-right">
                                                         Reserva #{reserva.id_turno}
                                                     </span>
@@ -241,6 +305,63 @@ const HistorialReservas = () => {
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* Modal de Confirmación para Eliminar Reserva */}
+            {showConfirmDelete && reservaAEliminar && (
+                <ConfirmDialog 
+                    isOpen={showConfirmDelete}
+                    onConfirm={confirmarEliminacion}
+                    onCancel={cancelarEliminacion}
+                    title="⚠️ Eliminar Reserva Definitivamente"
+                    message={
+                        <div className="space-y-4">
+                            <div className="border-l-4 border-red-500 pl-4">
+                                <h4 className="font-semibold text-red-800 mb-3">
+                                    ¿Estás seguro de eliminar esta reserva del sistema?
+                                </h4>
+                                
+                                {/* Información de la reserva */}
+                                <div className="bg-gray-50 p-3 rounded-lg mb-3">
+                                    <h5 className="font-medium text-gray-800 mb-2">Detalles de la Reserva:</h5>
+                                    <div className="space-y-1 text-sm text-gray-700">
+                                        <p><span className="font-medium">ID:</span> {reservaAEliminar.id_turno}</p>
+                                        <p><span className="font-medium">Cancha:</span> Cancha {reservaAEliminar.id_cancha}</p>
+                                        <p><span className="font-medium">Usuario:</span> {reservaAEliminar.nombre || reservaAEliminar.nombre_usuario || `ID: ${reservaAEliminar.id_usuario}`}</p>
+                                        <p><span className="font-medium">Email:</span> {reservaAEliminar.email || reservaAEliminar.email_usuario}</p>
+                                        <p><span className="font-medium">Fecha:</span> {(() => {
+                                            const { fecha, hora } = formatearFechaHora(reservaAEliminar.fecha_turno);
+                                            return `${fecha} a las ${hora}`;
+                                        })()}</p>
+                                        <p><span className="font-medium">Estado:</span> {reservaAEliminar.estado}</p>
+                                        <p><span className="font-medium">Precio:</span> ${reservaAEliminar.precio?.toLocaleString()}</p>
+                                    </div>
+                                </div>
+
+                                {/* Advertencias */}
+                                <div className="bg-red-50 p-3 rounded-lg">
+                                    <p className="font-medium text-red-800 mb-2">⚠️ Esta acción es IRREVERSIBLE</p>
+                                    <ul className="space-y-1 text-sm text-red-700">
+                                        <li>• La reserva será eliminada permanentemente del sistema</li>
+                                        <li>• Se perderá todo el historial asociado</li>
+                                        <li>• El usuario será notificado automáticamente por email</li>
+                                        <li>• El horario quedará disponible para nuevas reservas</li>
+                                        <li>• No se puede deshacer esta operación</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <div className="text-center pt-2">
+                                <p className="text-sm font-medium text-gray-800">
+                                    Solo los administradores pueden realizar esta acción crítica
+                                </p>
+                            </div>
+                        </div>
+                    }
+                    confirmText="Sí, Eliminar Definitivamente"
+                    cancelText="Cancelar"
+                    type="danger"
+                />
             )}
         </div>
     );
