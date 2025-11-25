@@ -46,6 +46,11 @@ const NuevaReservaUsuario = () => {
             const data = await obtenerCanchaPorId(id);
             setCancha(data);
             setError('');
+            
+            // Si hay fecha seleccionada, recargar horarios
+            if (formData.fecha) {
+                cargarHorariosDisponibles();
+            }
         } catch (err) {
             setError('Error al cargar los datos de la cancha');
             console.error(err);
@@ -57,7 +62,6 @@ const NuevaReservaUsuario = () => {
     const cargarHorariosDisponibles = async () => {
         try {
             const response = await obtenerHorariosDisponibles(id, formData.fecha, formData.duracion);
-            console.log('Respuesta horarios disponibles:', response);
             if (response.success) {
                 setHorariosDisponibles(response.data.horarios_disponibles);
                 setHorariosOcupados(response.data.horarios_ocupados);
@@ -300,9 +304,21 @@ const NuevaReservaUsuario = () => {
                 {/* Horarios disponibles */}
                 {formData.fecha && (
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Horarios Disponibles *
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700">
+                                Horarios Disponibles *
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    cargarHorariosDisponibles();
+                                }}
+                                className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded transition-colors"
+                                title="Recargar horarios actualizados"
+                            >
+                                🔄 Actualizar
+                            </button>
+                        </div>
                         
                         {horariosDisponibles.length > 0 ? (
                             <div className="space-y-2">

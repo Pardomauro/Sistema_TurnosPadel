@@ -32,6 +32,7 @@ export default function CrearEditarCancha() {
             "17:00-18:30", "18:30-20:00", "20:00-21:30", "21:30-23:00"
         ]
     });
+    const [success, setSuccess] = useState('');
 
     useEffect(() => {
         if (id) {
@@ -64,16 +65,58 @@ export default function CrearEditarCancha() {
             setLoading(true);
             setError(null);
 
+            console.log('📝 Enviando datos de cancha:', {
+                id,
+                cancha,
+                operation: id ? 'update' : 'create'
+            });
+
+            // Validar datos antes de enviar
+            if (!cancha.precio || cancha.precio <= 0) {
+                throw new Error('El precio debe ser mayor a 0');
+            }
+
+            if (!cancha.horarios_disponibles || cancha.horarios_disponibles.length === 0) {
+                throw new Error('Debe especificar al menos un horario disponible');
+            }
+
+            // Filtrar horarios vacíos
+            const horariosLimpios = cancha.horarios_disponibles.filter(horario => horario.trim() !== '');
+            if (horariosLimpios.length === 0) {
+                throw new Error('Debe especificar al menos un horario válido');
+            }
+
+            const datosCancha = {
+                precio: parseFloat(cancha.precio),
+                en_mantenimiento: Boolean(cancha.en_mantenimiento), // Asegurar que sea boolean
+                horarios_disponibles: horariosLimpios
+            };
+
+            console.log('📝 Datos finales a enviar:', {
+                precio: { valor: datosCancha.precio, tipo: typeof datosCancha.precio },
+                en_mantenimiento: { valor: datosCancha.en_mantenimiento, tipo: typeof datosCancha.en_mantenimiento },
+                horarios_disponibles: { valor: datosCancha.horarios_disponibles, tipo: typeof datosCancha.horarios_disponibles, esArray: Array.isArray(datosCancha.horarios_disponibles) }
+            });
+
             if (id) {
-                await actualizarCancha(id, cancha);
+                const resultado = await actualizarCancha(id, datosCancha);
+                if (resultado.success) {
+                    // Mostrar mensaje de éxito específico
+                    setSuccess(resultado.message || `Actualización de cancha ${id} realizada correctamente`);
+                    // Redirigir después de 2 segundos para que el usuario vea el mensaje
+                    setTimeout(() => {
+                        navigate('/canchas');
+                    }, 2000);
+                    return; // No continuar con la navegación inmediata
+                }
             } else {
-                await crearCancha(cancha);
+                await crearCancha(datosCancha);
             }
 
             navigate('/canchas');
         } catch (err) {
-            setError('Error al guardar la cancha');
-            console.error(err);
+            console.error('❌ Error al guardar cancha:', err);
+            setError(err.message || 'Error al guardar la cancha');
         } finally {
             setLoading(false);
         }
@@ -125,6 +168,17 @@ export default function CrearEditarCancha() {
                 {error && (
                     <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
                         {error}
+                    </div>
+                )}
+
+                {success && (
+                    <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+                        <div className="flex items-center">
+                            <svg className="h-5 w-5 text-green-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <span>{success}</span>
+                        </div>
                     </div>
                 )}
 

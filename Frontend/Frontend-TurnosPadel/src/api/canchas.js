@@ -110,6 +110,8 @@ export const crearCancha = async (canchaData) => {
 // Función para actualizar una cancha (solo para administradores)
 export const actualizarCancha = async (id, canchaData) => {
     try {
+        console.log('📤 Enviando datos para actualizar cancha:', { id, canchaData });
+        
         const response = await fetch(`${API_BASE_URL}/canchas/${id}`, {
             method: 'PUT',
             headers: {
@@ -118,14 +120,36 @@ export const actualizarCancha = async (id, canchaData) => {
             body: JSON.stringify(canchaData)
         });
 
+        console.log('📥 Respuesta del servidor:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok
+        });
+
         if (!response.ok) {
-            throw new Error('Error al actualizar la cancha');
+            let errorMessage = 'Error al actualizar la cancha';
+            try {
+                const errorData = await response.json();
+                console.error('❌ Detalles del error:', errorData);
+                errorMessage = errorData.message || errorMessage;
+                
+                // Si hay errores de validación específicos, mostrarlos
+                if (errorData.errors && Array.isArray(errorData.errors)) {
+                    const validationErrors = errorData.errors.map(err => err.msg).join(', ');
+                    errorMessage = `Errores de validación: ${validationErrors}`;
+                }
+            } catch (parseError) {
+                console.error('❌ Error parsing error response:', parseError);
+                errorMessage = `Error ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
         }
 
         const data = await response.json();
+        console.log('✅ Cancha actualizada exitosamente:', data);
         return data;
     } catch (error) {
-        console.error('Error en la petición:', error);
+        console.error('❌ Error en la petición:', error);
         throw error;
     }
 };

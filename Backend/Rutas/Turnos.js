@@ -253,12 +253,20 @@ const obtenerHorariosDisponiblesHandler = async (req, res) => {
         const generarHorariosDinamicos = (duracionMinutos) => {
             const horarios = [];
             const horaInicio = 8; // 8:00 AM
-            const horaFin = 23; // 11:00 PM
+            const horaFin = 24; // 12:00 AM (medianoche)
             const intervalos = duracionMinutos / 60; // Convertir a horas
             
             for (let hora = horaInicio; hora < horaFin; hora += intervalos) {
                 const horaInicioStr = `${Math.floor(hora).toString().padStart(2, '0')}:${((hora % 1) * 60).toString().padStart(2, '0')}`;
-                const horaFinStr = `${Math.floor(hora + intervalos).toString().padStart(2, '0')}:${(((hora + intervalos) % 1) * 60).toString().padStart(2, '0')}`;
+                let horaFinCalculada = hora + intervalos;
+                
+                // Manejar el caso especial de medianoche
+                let horaFinStr;
+                if (horaFinCalculada >= 24) {
+                    horaFinStr = '00:00';
+                } else {
+                    horaFinStr = `${Math.floor(horaFinCalculada).toString().padStart(2, '0')}:${(((horaFinCalculada) % 1) * 60).toString().padStart(2, '0')}`;
+                }
                 
                 // Verificar que no se pase de la hora límite
                 if (hora + intervalos <= horaFin) {

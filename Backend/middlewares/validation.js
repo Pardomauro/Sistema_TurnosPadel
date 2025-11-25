@@ -8,13 +8,32 @@ import { validationResult } from 'express-validator';
  */
 export const validarCampos = (req, res, next) => {
     const errores = validationResult(req);
+    
+    // Log para debugging
+    console.log('🔍 Validación de campos:', {
+        method: req.method,
+        url: req.originalUrl,
+        body: req.body,
+        params: req.params,
+        erroresEncontrados: errores.array()
+    });
+    
     if (!errores.isEmpty()) {
-        return res.status(400).json({
+        const response = {
             success: false,
             message: 'Errores de validación',
-            errors: errores.array()
-        });
+            errors: errores.array(),
+            datosRecibidos: {
+                body: req.body,
+                params: req.params
+            }
+        };
+        
+        console.log('❌ Validación fallida:', response);
+        return res.status(400).json(response);
     }
+    
+    console.log('✅ Validación exitosa');
     next();
 };
 

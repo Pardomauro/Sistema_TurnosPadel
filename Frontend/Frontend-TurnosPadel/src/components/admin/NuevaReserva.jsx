@@ -1,22 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { obtenerCanchas } from '../../api/canchas';
-import { crearReserva, verificarDisponibilidadCancha } from '../../api/reservas';
+import { crearReserva, obtenerHorariosDisponibles } from '../../api/reservas';
 import { useAuth } from '../../context/AuthContext';
+import ConfirmDialog from '../accionesCriticas/ConfirmDialog';
 
 const NuevaReserva = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const [canchas, setCanchas] = useState([]);
-    const [usuarios, setUsuarios] = useState([]);
+    const [horariosDisponibles, setHorariosDisponibles] = useState([]);
+    const [horariosOcupados, setHorariosOcupados] = useState([]);
+    const [todasLasReservas, setTodasLasReservas] = useState([]); // Todas las reservas existentes
     const [loading, setLoading] = useState(false);
     const [loadingCanchas, setLoadingCanchas] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     
+    // Estados para el modal de confirmación
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [confirmData, setConfirmData] = useState(null);
+    
     const [formData, setFormData] = useState({
         id_cancha: '',
-        id_usuario: '',
         email_usuario: '',
         nombre_usuario: '',
         fecha: '',
@@ -26,7 +32,7 @@ const NuevaReserva = () => {
         estado: 'reservado'
     });
 
-    const horariosDisponibles = [
+    const horariosPosibles = [
         '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', 
         '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00'
     ];
@@ -35,18 +41,109 @@ const NuevaReserva = () => {
         cargarCanchas();
     }, []);
 
+    useEffect(() => {
+        if (formData.fecha && formData.id_cancha) {
+            cargarHorariosDisponibles();
+        }
+    }, [formData.fecha, formData.duracion, formData.id_cancha]);
+
     const cargarCanchas = async () => {
         try {
             setLoadingCanchas(true);
             const canchasData = await obtenerCanchas();
-            console.log('Canchas obtenidas:', canchasData); // Para debug
             setCanchas(Array.isArray(canchasData) ? canchasData : []);
+            
+            // Si hay una cancha seleccionada y fecha, recargar horarios
+            if (formData.id_cancha && formData.fecha) {
+                cargarHorariosDisponibles();
+            }
         } catch (err) {
             console.error('Error cargando canchas:', err);
             setError('Error al cargar las canchas: ' + err.message);
             setCanchas([]);
         } finally {
             setLoadingCanchas(false);
+        }
+    };
+
+    // Función para verificar si una nueva reserva se superpone con las existentes
+    const verificarSuperposicion = (horaInicio, duracionMin, reservasExistentes) => {
+        if (!horaInicio || !duracionMin || !reservasExistentes.length) return false;
+        
+        const [horasInicio, minutosInicio] = horaInicio.split(':').map(Number);
+        const inicioEnMinutos = horasInicio * 60 + minutosInicio;
+        const finEnMinutos = inicioEnMinutos + parseInt(duracionMin);
+        
+        for (const reserva of reservasExistentes) {
+            const [horasReserva, minutosReserva] = reserva.hora.split(':').map(Number);
+            const inicioReservaMinutos = horasReserva * 60 + minutosReserva;
+            
+            // Las reservas existentes pueden tener diferentes duraciones
+            // Si no se especifica, asumir 60 min como mínimo
+            const duracionReserva = reserva.duracion || 60;
+            const finReservaMinutos = inicioReservaMinutos + duracionReserva;
+            
+            // Verificar superposición: 
+            // La nueva reserva empieza antes de que termine la existente Y 
+            // la nueva reserva termina después de que empiece la existente
+            const haySuperposicion = inicioEnMinutos < finReservaMinutos && finEnMinutos > inicioReservaMinutos;
+            
+            if (haySuperposicion) {
+                return true;
+            }
+        }
+        
+        return false;
+    };
+
+    // Filtrar horarios disponibles eliminando los que causen superposición
+    const filtrarHorariosSinSuperposicion = (horariosDisponibles, duracion, reservasExistentes) => {
+        if (!horariosDisponibles.length || !reservasExistentes.length) return horariosDisponibles;
+        
+        return horariosDisponibles.filter(horario => {
+            return !verificarSuperposicion(horario.hora, duracion, reservasExistentes);
+        });
+    };
+
+    const cargarHorariosDisponibles = async () => {
+        try {
+            // Primero cargar todas las reservas existentes (independiente de duración)
+            const responseReservas = await obtenerHorariosDisponibles(
+                formData.id_cancha, 
+                formData.fecha, 
+                60 // Usar 60 min para obtener todas las reservas base
+            );
+            
+            if (responseReservas.success) {
+                setTodasLasReservas(responseReservas.data.horarios_ocupados || []);
+            }
+            
+            // Luego cargar horarios disponibles para la duración específica
+            const response = await obtenerHorariosDisponibles(
+                formData.id_cancha, 
+                formData.fecha, 
+                formData.duracion
+            );
+            
+            if (response.success) {
+                const horariosOriginales = response.data.horarios_disponibles || [];
+                const reservasExistentes = responseReservas.data.horarios_ocupados || [];
+                
+                // Filtrar horarios que causarían superposición
+                const horariosFiltrados = filtrarHorariosSinSuperposicion(
+                    horariosOriginales, 
+                    formData.duracion, 
+                    reservasExistentes
+                );
+                
+                setHorariosDisponibles(horariosFiltrados);
+                setHorariosOcupados(response.data.horarios_ocupados || []);
+            }
+        } catch (err) {
+            console.error('Error al cargar horarios:', err);
+            setHorariosDisponibles([]);
+            setHorariosOcupados([]);
+            setTodasLasReservas([]);
         }
     };
 
@@ -100,16 +197,6 @@ const NuevaReserva = () => {
             return false;
         }
 
-        // Como administrador, permitimos crear reservas para cualquier fecha
-        // const fechaSeleccionada = new Date(formData.fecha);
-        // const hoy = new Date();
-        // hoy.setHours(0, 0, 0, 0);
-        // 
-        // if (fechaSeleccionada < hoy) {
-        //     setError('No puedes crear reservas para fechas pasadas');
-        //     return false;
-        // }
-
         if (!formData.hora) {
             setError('Debes seleccionar una hora');
             return false;
@@ -125,32 +212,67 @@ const NuevaReserva = () => {
             return false;
         }
 
-        return true;
+        // Verificar disponibilidad (como admin podemos sobrescribir, pero advertir)
+        const horaOcupada = todasLasReservas.find(h => h.hora === formData.hora);
+        if (horaOcupada) {
+            // Como admin, permitimos pero marcamos la advertencia
+            return { valid: true, warning: `⚠️ Advertencia: Esta hora ya tiene una reserva existente (${horaOcupada.horario})` };
+        }
+
+        const horaDisponible = horariosDisponibles.find(h => h.hora === formData.hora);
+        if (!horaDisponible && horariosDisponibles.length > 0 && !horaOcupada) {
+            setError('La hora seleccionada no está disponible');
+            return { valid: false };
+        }
+
+        return { valid: true };
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         
-        if (!validarFormulario()) {
+        const validacion = validarFormulario();
+        if (!validacion.valid) {
             return;
         }
 
+        // Preparar datos para la confirmación
+        const canchaSelecionada = canchas.find(c => c.id_cancha === parseInt(formData.id_cancha));
+        const fechaFormateada = new Date(formData.fecha).toLocaleDateString('es-ES', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+
+        setConfirmData({
+            cancha: formData.id_cancha,
+            fecha: fechaFormateada,
+            hora: formData.hora,
+            duracion: formData.duracion,
+            precio: parseFloat(formData.precio),
+            nombre: formData.nombre_usuario,
+            email: formData.email_usuario,
+            estado: formData.estado,
+            nombreCancha: `Cancha ${canchaSelecionada?.id_cancha}`,
+            warning: validacion.warning || null
+        });
+
+        setShowConfirm(true);
+    };
+
+    const confirmarReserva = async () => {
+        setShowConfirm(false);
         setLoading(true);
         setError('');
         setSuccess('');
 
         try {
-            // Como administrador, podemos crear reservas sin verificar disponibilidad
-            // (o podríamos hacer una verificación opcional con warning en lugar de error)
-            
-            // Preparar datos para la reserva
-            // Mantener el formato simple para evitar problemas de zona horaria
+            // Construir fecha y hora completa
             const fechaHora = `${formData.fecha} ${formData.hora}:00`;
             
-            console.log('Fecha y hora enviada:', fechaHora);
-            
             const reservaData = {
-                id_usuario: formData.id_usuario || null, // null para usuarios nuevos
+                id_usuario: null, // Como admin, podemos crear reservas sin usuario específico
                 id_cancha: parseInt(formData.id_cancha),
                 fecha_turno: fechaHora,
                 duracion: parseInt(formData.duracion),
@@ -159,9 +281,6 @@ const NuevaReserva = () => {
                 email: formData.email_usuario,
                 nombre: formData.nombre_usuario
             };
-
-            console.log('📤 Datos de reserva a enviar:', reservaData);
-            console.log('📤 FormData actual:', formData);
 
             const response = await crearReserva(reservaData);
             
@@ -180,6 +299,11 @@ const NuevaReserva = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const cancelarConfirmacion = () => {
+        setShowConfirm(false);
+        setConfirmData(null);
     };
 
     if (loadingCanchas) {
@@ -320,6 +444,39 @@ const NuevaReserva = () => {
                                     </select>
                                 </div>
                             </div>
+                            
+                            {/* Información adicional para el admin */}
+                            {formData.fecha && formData.id_cancha && (
+                                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center">
+                                            <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span className="text-sm font-medium text-blue-800">Información de Disponibilidad</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                cargarHorariosDisponibles();
+                                                cargarCanchas();
+                                            }}
+                                            className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded transition-colors"
+                                            title="Recargar horarios actualizados"
+                                        >
+                                            🔄 Actualizar
+                                        </button>
+                                    </div>
+                                    <div className="text-xs text-blue-700 space-y-1">
+                                        <p>• Horarios disponibles sin conflictos: {horariosDisponibles.length}</p>
+                                        <p>• Reservas existentes: {todasLasReservas.length}</p>
+                                        <p>• Duración seleccionada: {formData.duracion} minutos</p>
+                                        <p>• Como administrador, puedes crear reservas incluso en horarios ocupados</p>
+                                        <p>• Los horarios mostrados no generan superposiciones con reservas existentes</p>
+                                        <p className="text-blue-600 font-medium">• Usa "🔄 Actualizar" si modificaste horarios de una cancha</p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Fecha y Hora */}
@@ -343,20 +500,111 @@ const NuevaReserva = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
                                         Hora *
                                     </label>
-                                    <select
-                                        name="hora"
-                                        value={formData.hora}
-                                        onChange={handleChange}
-                                        className="w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
-                                        required
-                                    >
-                                        <option value="">Seleccionar hora</option>
-                                        {horariosDisponibles.map(hora => (
-                                            <option key={hora} value={hora}>
-                                                {hora}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    {formData.fecha && formData.id_cancha ? (
+                                        <div className="space-y-4">
+                                            {/* Sistema de calendario con radio buttons */}
+                                            {horariosDisponibles.length > 0 || todasLasReservas.length > 0 ? (
+                                                <div className="space-y-4">
+                                                    {/* Advertencia si hay superposiciones detectadas */}
+                                                    {todasLasReservas.length > 0 && formData.duracion > 60 && (
+                                                        <div className="text-xs p-2 bg-yellow-50 rounded border border-yellow-200 text-yellow-800">
+                                                            <span className="font-medium">⚠️ Detección de superposiciones:</span> Para reservas de {formData.duracion} minutos, algunos horarios se filtran automáticamente para evitar conflictos con reservas existentes.
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {/* Horarios disponibles */}
+                                                    {horariosDisponibles.length > 0 && (
+                                                        <div>
+                                                            <p className="text-sm font-medium text-green-700 mb-2">
+                                                                ✅ Horarios Disponibles ({horariosDisponibles.length})
+                                                            </p>
+                                                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                                                                {horariosDisponibles.map((horario, index) => (
+                                                                    <label key={`disponible-${index}`} className="flex items-center cursor-pointer">
+                                                                        <input
+                                                                            type="radio"
+                                                                            name="hora"
+                                                                            value={horario.hora}
+                                                                            checked={formData.hora === horario.hora}
+                                                                            onChange={handleChange}
+                                                                            className="sr-only"
+                                                                        />
+                                                                        <span className={`text-sm px-2 py-2 rounded flex-1 text-center transition-all duration-200 ${
+                                                                            formData.hora === horario.hora 
+                                                                                ? 'bg-green-500 text-white ring-2 ring-green-400' 
+                                                                                : 'bg-green-100 text-green-800 hover:bg-green-200'
+                                                                        }`}>
+                                                                            {horario.horario}
+                                                                        </span>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {/* Horarios ocupados (solo admin puede seleccionar) */}
+                                                    {todasLasReservas.length > 0 && (
+                                                        <div>
+                                                            <p className="text-sm font-medium text-red-700 mb-2">
+                                                                ⚠️ Horarios Ocupados ({todasLasReservas.length}) - Solo Admin
+                                                            </p>
+                                                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                                                                {todasLasReservas.map((horario, index) => (
+                                                                    <label key={`ocupado-${index}`} className="flex items-center cursor-pointer">
+                                                                        <input
+                                                                            type="radio"
+                                                                            name="hora"
+                                                                            value={horario.hora}
+                                                                            checked={formData.hora === horario.hora}
+                                                                            onChange={handleChange}
+                                                                            className="sr-only"
+                                                                        />
+                                                                        <span className={`text-sm px-2 py-2 rounded flex-1 text-center transition-all duration-200 border-2 ${
+                                                                            formData.hora === horario.hora 
+                                                                                ? 'bg-red-500 text-white ring-2 ring-red-400 border-red-600' 
+                                                                                : 'bg-red-100 text-red-800 hover:bg-red-200 border-red-300'
+                                                                        }`}>
+                                                                            {horario.horario}
+                                                                        </span>
+                                                                    </label>
+                                                                ))}
+                                                            </div>
+                                                            <div className="text-xs text-red-600 mt-2 p-2 bg-red-50 rounded border border-red-200">
+                                                                <span className="font-medium">⚠️ Advertencia:</span> Estos horarios ya tienen reservas. Como administrador puedes crear reservas superpuestas, pero se recomienda verificar antes de confirmar.
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {/* Información de selección */}
+                                                    {formData.hora && (
+                                                        <div className="text-sm p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                                            <span className="font-medium text-blue-800">Hora seleccionada:</span> 
+                                                            <span className="ml-2 text-blue-700">{formData.hora}</span>
+                                                            {todasLasReservas.find(h => h.hora === formData.hora) && (
+                                                                <span className="ml-2 text-red-700 font-medium">(⚠️ Superpuesta)</span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                                                    <p>No hay horarios disponibles para la fecha seleccionada</p>
+                                                    <p className="text-sm mt-2">Intenta con otra fecha</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <select
+                                            name="hora"
+                                            value={formData.hora}
+                                            onChange={handleChange}
+                                            className="w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
+                                            disabled
+                                            required
+                                        >
+                                            <option value="">Primero selecciona fecha y cancha</option>
+                                        </select>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -433,6 +681,68 @@ const NuevaReserva = () => {
                             </button>
                         </div>
                     </form>
+
+                    {/* Modal de Confirmación */}
+                    {showConfirm && confirmData && (
+                        <ConfirmDialog 
+                            isOpen={showConfirm}
+                            onConfirm={confirmarReserva}
+                            onCancel={cancelarConfirmacion}
+                            title="Confirmar Nueva Reserva (Admin)"
+                            type="warning"
+                            message={
+                                <div className="space-y-4">
+                                    {confirmData.warning && (
+                                        <div className="border-l-4 border-red-500 pl-4 bg-red-50 p-3 rounded">
+                                            <h4 className="font-semibold text-red-800">🚨 Advertencia de Conflicto</h4>
+                                            <p className="text-sm text-red-700 mt-1">{confirmData.warning}</p>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="border-l-4 border-yellow-500 pl-4">
+                                        <h4 className="font-semibold text-gray-800">⚠️ Creación de Reserva como Administrador</h4>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                            Estás creando una reserva como administrador. Esta acción:
+                                        </p>
+                                        <ul className="text-xs text-gray-600 mt-2 space-y-1 list-disc list-inside">
+                                            <li>Creará la reserva directamente sin validaciones adicionales</li>
+                                            <li>Enviará confirmación por email al usuario</li>
+                                            <li>No requiere pago previo</li>
+                                            {confirmData.warning && <li className="text-red-600 font-medium">Permitirá superponer horarios existentes</li>}
+                                        </ul>
+                                    </div>
+                                    
+                                    <div className="bg-blue-50 p-3 rounded-lg">
+                                        <h4 className="font-semibold text-gray-800">📋 Detalles de la Reserva</h4>
+                                        <div className="mt-2 space-y-1 text-sm">
+                                            <p><span className="font-medium">Cliente:</span> {confirmData.nombre}</p>
+                                            <p><span className="font-medium">Email:</span> {confirmData.email}</p>
+                                            <p><span className="font-medium">Cancha:</span> {confirmData.nombreCancha}</p>
+                                            <p><span className="font-medium">Fecha:</span> {confirmData.fecha}</p>
+                                            <p><span className="font-medium">Hora:</span> {confirmData.hora}</p>
+                                            <p><span className="font-medium">Duración:</span> {confirmData.duracion} minutos</p>
+                                            <p><span className="font-medium">Precio:</span> ${confirmData.precio?.toLocaleString()}</p>
+                                            <p><span className="font-medium">Estado:</span> 
+                                                <span className={`ml-1 px-2 py-1 rounded-full text-xs ${
+                                                    confirmData.estado === 'reservado' ? 'bg-green-100 text-green-800' : 
+                                                    confirmData.estado === 'completado' ? 'bg-blue-100 text-blue-800' : 
+                                                    'bg-gray-100 text-gray-800'
+                                                }`}>
+                                                    {confirmData.estado}
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="text-center pt-2">
+                                        <p className="text-sm text-gray-600">
+                                            ¿Confirmas que deseas crear esta reserva?
+                                        </p>
+                                    </div>
+                                </div>
+                            }
+                        />
+                    )}
                 </div>
             </div>
         </div>

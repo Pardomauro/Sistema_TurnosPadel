@@ -33,6 +33,7 @@ const HistorialReservas = () => {
             }
             
             setReservas(data || []);
+            console.log(`Reservas cargadas y ordenadas: ${data?.length || 0} reservas`);
             setError('');
         } catch (err) {
             setError('Error al cargar las reservas');
@@ -142,7 +143,7 @@ const HistorialReservas = () => {
 
     const filtrarReservas = (tipo) => {
         const ahora = new Date();
-        return reservas.filter(reserva => {
+        let reservasFiltradas = reservas.filter(reserva => {
             const fechaReserva = new Date(reserva.fecha_turno);
             
             switch (tipo) {
@@ -152,6 +153,23 @@ const HistorialReservas = () => {
                     return fechaReserva <= ahora || reserva.estado === 'completado' || reserva.estado === 'cancelado';
                 default:
                     return true;
+            }
+        });
+
+        // Ordenar por fecha de turno
+        return reservasFiltradas.sort((a, b) => {
+            const fechaA = new Date(a.fecha_turno);
+            const fechaB = new Date(b.fecha_turno);
+            
+            if (tipo === 'proximas') {
+                // Para próximas reservas: más cercanas primero (orden ascendente)
+                return fechaA - fechaB;
+            } else if (tipo === 'pasadas') {
+                // Para reservas pasadas: más recientes primero (orden descendente)
+                return fechaB - fechaA;
+            } else {
+                // Para todas las reservas: más recientes primero
+                return fechaB - fechaA;
             }
         });
     };
@@ -169,6 +187,9 @@ const HistorialReservas = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
                 <h2 className="text-xl sm:text-2xl font-bold">
                     {isAdmin() ? 'Todas las Reservas' : 'Mis Reservas'}
+                    {reservas.length > 0 && (
+                        <span className="ml-2 text-sm font-normal text-gray-600">({reservas.length} total)</span>
+                    )}
                 </h2>
                 <div className="flex gap-2">
                     {isAdmin() && (
@@ -210,7 +231,14 @@ const HistorialReservas = () => {
                     {/* Próximas reservas */}
                     {filtrarReservas('proximas').length > 0 && (
                         <div>
-                            <h3 className="text-lg font-semibold mb-4 text-green-700">Próximas Reservas</h3>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
+                                <h3 className="text-lg font-semibold text-green-700">
+                                    Próximas Reservas ({filtrarReservas('proximas').length})
+                                </h3>
+                                <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full w-fit">
+                                    📅 Ordenadas por fecha (más próximas primero)
+                                </span>
+                            </div>
                             <div className="grid gap-4">
                                 {filtrarReservas('proximas').map((reserva) => {
                                     const { fecha, hora } = formatearFechaHora(reserva.fecha_turno);
@@ -259,7 +287,14 @@ const HistorialReservas = () => {
                     {/* Historial (reservas pasadas) */}
                     {filtrarReservas('pasadas').length > 0 && (
                         <div>
-                            <h3 className="text-lg font-semibold mb-4 text-gray-700">Historial</h3>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
+                                <h3 className="text-lg font-semibold text-gray-700">
+                                    Historial ({filtrarReservas('pasadas').length})
+                                </h3>
+                                <span className="text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded-full w-fit">
+                                    📅 Ordenadas por fecha (más recientes primero)
+                                </span>
+                            </div>
                             <div className="grid gap-4">
                                 {filtrarReservas('pasadas').map((reserva) => {
                                     const { fecha, hora } = formatearFechaHora(reserva.fecha_turno);

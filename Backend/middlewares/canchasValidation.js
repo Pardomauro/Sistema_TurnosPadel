@@ -31,8 +31,15 @@ export const validacionesActualizarCancha = [
         .withMessage('El precio debe ser un número mayor a 0'),
     body('en_mantenimiento')
         .optional()
-        .isBoolean()
-        .withMessage('El estado de mantenimiento debe ser true o false'),
+        .custom((value) => {
+            // Permitir diferentes representaciones de boolean
+            if (value === undefined || value === null) return true;
+            if (typeof value === 'boolean') return true;
+            if (value === 'true' || value === 'false') return true;
+            if (value === 1 || value === 0) return true;
+            throw new Error('El estado de mantenimiento debe ser true, false, 1, 0, "true" o "false"');
+        })
+        .toBoolean(), // Convertir automáticamente a boolean
     body('horarios_disponibles')
         .optional()
         .isArray()

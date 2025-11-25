@@ -233,6 +233,8 @@ router.put('/:id', [
     try {
         const { id } = req.params;
 
+        console.log('🔧 Actualizando cancha:', { id, body: req.body });
+
         // Verificar que la cancha exista
         const [canchas] = await pool.query('SELECT * FROM canchas WHERE id = ?', [id]);
         if (canchas.length === 0) {
@@ -245,41 +247,105 @@ router.put('/:id', [
         const { precio, en_mantenimiento, horarios_disponibles } = req.body;
         const canchaActual = canchas[0];
 
+        console.log('📋 Datos recibidos:', {
+            precio: { valor: precio, tipo: typeof precio },
+            en_mantenimiento: { valor: en_mantenimiento, tipo: typeof en_mantenimiento },
+            horarios_disponibles: { valor: horarios_disponibles, tipo: typeof horarios_disponibles, esArray: Array.isArray(horarios_disponibles) }
+        });
+
         // Validar que al menos un campo sea enviado para actualizar
         const camposPermitidos = ['precio', 'en_mantenimiento', 'horarios_disponibles'];
         if (!validarCamposActualizacion(req.body, camposPermitidos)) {
             return res.status(400).json({
                 success: false,
-                message: 'Debe proporcionar al menos un campo para actualizar'
+                message: 'Debe proporcionar al menos un campo para actualizar',
+                camposPermitidos,
+                camposRecibidos: Object.keys(req.body)
             });
         }
 
-        // Validaciones básicas
-        if (precio !== undefined && (isNaN(precio) || precio <= 0)) {
-            return res.status(400).json({
-                success: false,
-                message: 'El precio debe ser un número mayor a 0'
+        // Validaciones básicas con más detalles
+        if (precio !== undefined) {
+            if (isNaN(precio) || precio <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El precio debe ser un número mayor a 0',
+                    valorRecibido: precio,
+                    tipoRecibido: typeof precio
+                });
+            }
+        }
+
+        if (en_mantenimiento !== undefined) {
+            // Convertir diferentes representaciones a boolean
+            let booleanValue;
+            if (typeof en_mantenimiento === 'boolean') {
+                booleanValue = en_mantenimiento;
+            } else if (typeof en_mantenimiento === 'string') {
+                booleanValue = en_mantenimiento.toLowerCase() === 'true';
+            } else if (typeof en_mantenimiento === 'number') {
+                booleanValue = en_mantenimiento === 1;
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El estado de mantenimiento debe ser boolean, "true"/"false", 1/0',
+                    valorRecibido: en_mantenimiento,
+                    tipoRecibido: typeof en_mantenimiento
+                });
+            }
+            
+            console.log('🔄 Conversión de en_mantenimiento:', {
+                original: en_mantenimiento,
+                convertido: booleanValue,
+                tipoOriginal: typeof en_mantenimiento,
+                tipoConvertido: typeof booleanValue
             });
         }
 
-        if (en_mantenimiento !== undefined && typeof en_mantenimiento !== 'boolean') {
-            return res.status(400).json({
-                success: false,
-                message: 'El estado de mantenimiento debe ser true o false'
-            });
-        }
+        if (horarios_disponibles !== undefined) {
+            if (!Array.isArray(horarios_disponibles)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Los horarios disponibles deben ser un array',
+                    valorRecibido: horarios_disponibles,
+                    tipoRecibido: typeof horarios_disponibles
+                });
+            }
+            
+            if (horarios_disponibles.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Debe proporcionar al menos un horario disponible',
+                    valorRecibido: horarios_disponibles
+                });
+            }
 
-        if (horarios_disponibles !== undefined && (!Array.isArray(horarios_disponibles) || horarios_disponibles.length === 0)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Debe proporcionar al menos un horario disponible'
-            });
+            // Validar que los horarios no estén vacíos
+            const horariosVacios = horarios_disponibles.filter(h => !h || h.trim() === '');
+            if (horariosVacios.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Los horarios no pueden estar vacíos',
+                    horariosVacios: horariosVacios.length,
+                    totalHorarios: horarios_disponibles.length
+                });
+            }
         }
 
         // Preparar valores para actualizar (usar valores actuales si no se proporcionan nuevos)
         const precioFinal = precio !== undefined ? precio : canchaActual.precio;
-        const mantenimientoFinal = en_mantenimiento !== undefined ? en_mantenimiento : canchaActual.en_mantenimiento;
+        const mantenimientoFinal = en_mantenimiento !== undefined ? 
+            (typeof en_mantenimiento === 'boolean' ? en_mantenimiento : 
+             typeof en_mantenimiento === 'string' ? en_mantenimiento.toLowerCase() === 'true' :
+             typeof en_mantenimiento === 'number' ? en_mantenimiento === 1 : false) 
+            : canchaActual.en_mantenimiento;
         const horariosFinal = horarios_disponibles !== undefined ? JSON.stringify(horarios_disponibles) : canchaActual.horarios_disponibles;
+
+        console.log('💾 Guardando valores finales:', {
+            precioFinal,
+            mantenimientoFinal,
+            horariosFinal: typeof horariosFinal === 'string' ? JSON.parse(horariosFinal) : horariosFinal
+        });
 
         // Actualizar cancha en la base de datos
         await pool.query(
@@ -308,7 +374,7 @@ router.put('/:id', [
 
         res.status(200).json({
             success: true,
-            message: 'Cancha actualizada correctamente',
+            message: `Actualización de cancha ${id} realizada correctamente`,
             data: canchaResponse
         });
     } catch (error) {
